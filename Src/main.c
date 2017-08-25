@@ -52,10 +52,10 @@
 
 /* USER CODE BEGIN Includes */
 #include "common.h"
-#include "./uartTerminal/uartTerminal.h"
-#include "./debugMonitor/debugMonitor.h"
-#include "./lcdIli9341/lcdIli9341.h"
-#include "./ov7670/ov7670.h"
+//#include "./uartTerminal/uartTerminal.h"
+//#include "./debugMonitor/debugMonitor.h"
+//#include "./lcdIli9341/lcdIli9341.h"
+//#include "./ov7670/ov7670.h"
 
 /* USER CODE END Includes */
 
@@ -74,7 +74,7 @@ DMA_HandleTypeDef hdma_usart2_rx;
 
 SRAM_HandleTypeDef hsram1;
 
-osThreadId defaultTaskHandle;
+osThreadId DebugMonitorHandle;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
@@ -91,7 +91,7 @@ static void MX_SPI1_Init(void);
 static void MX_I2C2_Init(void);
 static void MX_FSMC_Init(void);
 static void MX_TIM5_Init(void);
-void StartDefaultTask(void const * argument);
+void debugMonitor_task(void const * argument);
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
@@ -162,12 +162,12 @@ int main(void)
   /* USER CODE END RTOS_TIMERS */
 
   /* Create the thread(s) */
-  /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+  /* definition and creation of DebugMonitor */
+  osThreadDef(DebugMonitor, debugMonitor_task, osPriorityIdle, 0, 128);
+  DebugMonitorHandle = osThreadCreate(osThread(DebugMonitor), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
+
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_QUEUES */
@@ -524,8 +524,8 @@ static void MX_FSMC_Init(void)
 
 /* USER CODE END 4 */
 
-/* StartDefaultTask function */
-void StartDefaultTask(void const * argument)
+/* debugMonitor_task function */
+__weak void debugMonitor_task(void const * argument)
 {
 
   /* USER CODE BEGIN 5 */

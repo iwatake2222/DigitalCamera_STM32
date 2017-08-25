@@ -8,7 +8,7 @@
 #include "stm32f4xx_hal.h"
 #include <stdio.h>
 #include "common.h"
-#include "./uartTerminal/uartTerminal.h"
+//#include "./uartTerminal/uartTerminal.h"
 
 void retarget_init()
 {

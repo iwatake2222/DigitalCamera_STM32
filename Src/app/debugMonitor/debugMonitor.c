@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "common.h"
-#include "../ov7670/ov7670.h"
+#include "../../driver/ov7670/ov7670.h"
 
 typedef struct {
   char* cmd;
@@ -126,5 +126,11 @@ void debugMonitorShow()
   printf(">");
 }
 
-
+void debugMonitor_task(void const * argument)
+{
+  while(1) {
+    debugMonitorDo();
+    osDelay(1);
+  }
+}
 
