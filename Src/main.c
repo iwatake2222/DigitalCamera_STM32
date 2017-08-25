@@ -75,6 +75,10 @@ DMA_HandleTypeDef hdma_usart2_rx;
 SRAM_HandleTypeDef hsram1;
 
 osThreadId DebugMonitorHandle;
+osThreadId ModeMgrHandle;
+osThreadId LiveviewCtrlHandle;
+osThreadId CaptureCtrlHandle;
+osThreadId PlaybackCtrlHandle;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
@@ -92,6 +96,10 @@ static void MX_I2C2_Init(void);
 static void MX_FSMC_Init(void);
 static void MX_TIM5_Init(void);
 void debugMonitor_task(void const * argument);
+extern void modeMgr_task(void const * argument);
+extern void liveviewCtrl_task(void const * argument);
+extern void captureCtrl_task(void const * argument);
+extern void playbackCtrl_task(void const * argument);
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
@@ -165,6 +173,22 @@ int main(void)
   /* definition and creation of DebugMonitor */
   osThreadDef(DebugMonitor, debugMonitor_task, osPriorityIdle, 0, 128);
   DebugMonitorHandle = osThreadCreate(osThread(DebugMonitor), NULL);
+
+  /* definition and creation of ModeMgr */
+  osThreadDef(ModeMgr, modeMgr_task, osPriorityBelowNormal, 0, 128);
+  ModeMgrHandle = osThreadCreate(osThread(ModeMgr), NULL);
+
+  /* definition and creation of LiveviewCtrl */
+  osThreadDef(LiveviewCtrl, liveviewCtrl_task, osPriorityNormal, 0, 128);
+  LiveviewCtrlHandle = osThreadCreate(osThread(LiveviewCtrl), NULL);
+
+  /* definition and creation of CaptureCtrl */
+  osThreadDef(CaptureCtrl, captureCtrl_task, osPriorityNormal, 0, 128);
+  CaptureCtrlHandle = osThreadCreate(osThread(CaptureCtrl), NULL);
+
+  /* definition and creation of PlaybackCtrl */
+  osThreadDef(PlaybackCtrl, playbackCtrl_task, osPriorityNormal, 0, 128);
+  PlaybackCtrlHandle = osThreadCreate(osThread(PlaybackCtrl), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
 

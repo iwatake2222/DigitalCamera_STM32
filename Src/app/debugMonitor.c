@@ -11,10 +11,11 @@
 
 #include "main.h"
 #include "stm32f4xx_hal.h"
+#include "cmsis_os.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include "common.h"
-#include "../../driver/ov7670/ov7670.h"
+#include "../driver/ov7670/ov7670.h"
 
 typedef struct {
   char* cmd;
