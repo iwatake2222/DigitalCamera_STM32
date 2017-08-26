@@ -6,8 +6,13 @@
  */
 #include <stdio.h>
 #include "cmsis_os.h"
+#include "main.h"
 #include "common.h"
 #include "commonHigh.h"
+#include "stm32f4xx_hal.h"
+
+
+extern TIM_HandleTypeDef htim5;
 
 /*** Internal Const Values, Macros ***/
 #define INPUT_TASK_INTERVAL 50
@@ -16,24 +21,23 @@
 #define LOG(str, ...) printf("[INPUT] " str, ##__VA_ARGS__);
 
 /*** Internal Static Variables ***/
-// initialized by 0 (dummy module id)
-MODULE_ID s_registeredIdMode[INPUT_MAX_REGISTER_NUM];
-MODULE_ID s_registeredIdCap[INPUT_MAX_REGISTER_NUM];
-MODULE_ID s_registeredIdOther0[INPUT_MAX_REGISTER_NUM];
-MODULE_ID s_registeredIdDial0[INPUT_MAX_REGISTER_NUM];
+MODULE_ID s_registeredId[INPUT_TYPE_NUM][INPUT_MAX_REGISTER_NUM]; // initialized by 0 (dummy module id)
+uint8_t  s_needNotify[INPUT_TYPE_NUM];
 
 /*** Internal Function Declarations ***/
 static void input_init();
 static RET input_regist(MSG_STRUCT *p_msg);
 static RET input_unregist(MSG_STRUCT *p_msg);
 static void input_checkStatus();
-
+static void input_notify(INPUT_TYPE type, int16_t status);
 
 /*** External Function Defines ***/
 void input_task(void const * argument)
 {
   LOG("task start\n");
   osMessageQId myQueueId = getQueueId(INPUT);
+
+  input_init();
 
   while(1) {
     RET ret;
@@ -67,36 +71,12 @@ void input_task(void const * argument)
 /*** Internal Function Defines ***/
 static RET input_regist(MSG_STRUCT *p_msg)
 {
-  if (p_msg->param.input.type == INPUT_TYPE_KEY_MODE) {
-    for(uint32_t i = 0; i < INPUT_MAX_REGISTER_NUM; i++) {
-      if (s_registeredIdMode[i] == 0) {
-        s_registeredIdMode[i] = p_msg->sender;
-        return RET_OK;
-      }
-    }
-  }
-  if (p_msg->param.input.type == INPUT_TYPE_KEY_CAP) {
-    for(uint32_t i = 0; i < INPUT_MAX_REGISTER_NUM; i++) {
-      if (s_registeredIdCap[i] == 0) {
-        s_registeredIdCap[i] = p_msg->sender;
-        return RET_OK;
-      }
-    }
-  }
-  if (p_msg->param.input.type == INPUT_TYPE_KEY_OTHER0) {
-    for(uint32_t i = 0; i < INPUT_MAX_REGISTER_NUM; i++) {
-      if (s_registeredIdOther0[i] == 0) {
-        s_registeredIdOther0[i] = p_msg->sender;
-        return RET_OK;
-      }
-    }
-  }
-  if (p_msg->param.input.type == INPUT_TYPE_DIAL0) {
-    for(uint32_t i = 0; i < INPUT_MAX_REGISTER_NUM; i++) {
-      if (s_registeredIdDial0[i] == 0) {
-        s_registeredIdDial0[i] = p_msg->sender;
-        return RET_OK;
-      }
+  if (p_msg->param.input.type >= INPUT_TYPE_NUM) return RET_ERR;
+
+  for(uint32_t i = 0; i < INPUT_MAX_REGISTER_NUM; i++) {
+    if (s_registeredId[p_msg->param.input.type][i] == 0) {
+      s_registeredId[p_msg->param.input.type][i] = p_msg->sender;
+      return RET_OK;
     }
   }
   return RET_ERR;
@@ -105,43 +85,84 @@ static RET input_regist(MSG_STRUCT *p_msg)
 static RET input_unregist(MSG_STRUCT *p_msg)
 {
   RET ret = RET_ERR;
-  if (p_msg->param.input.type == INPUT_TYPE_KEY_MODE) {
-    for(uint32_t i = 0; i < INPUT_MAX_REGISTER_NUM; i++) {
-      if (s_registeredIdMode[i] == p_msg->sender) {
-        ret = RET_OK;
-        s_registeredIdMode[i] = 0;
-      }
-    }
-  }
-  if (p_msg->param.input.type == INPUT_TYPE_KEY_CAP) {
-    for(uint32_t i = 0; i < INPUT_MAX_REGISTER_NUM; i++) {
-      if (s_registeredIdCap[i] == p_msg->sender) {
-        ret = RET_OK;
-        s_registeredIdCap[i] = 0;
-      }
-    }
-  }
-  if (p_msg->param.input.type == INPUT_TYPE_KEY_OTHER0) {
-    for(uint32_t i = 0; i < INPUT_MAX_REGISTER_NUM; i++) {
-      if (s_registeredIdOther0[i] == p_msg->sender) {
-        ret = RET_OK;
-        s_registeredIdOther0[i] = 0;
-      }
-    }
-  }
-  if (p_msg->param.input.type == INPUT_TYPE_DIAL0) {
-    for(uint32_t i = 0; i < INPUT_MAX_REGISTER_NUM; i++) {
-      if (s_registeredIdDial0[i] == p_msg->sender) {
-        ret = RET_OK;
-        s_registeredIdDial0[i] = 0;
-      }
+  if (p_msg->param.input.type >= INPUT_TYPE_NUM) return RET_ERR;
+
+  for(uint32_t i = 0; i < INPUT_MAX_REGISTER_NUM; i++) {
+    if (s_registeredId[p_msg->param.input.type][i] == p_msg->sender) {
+      s_registeredId[p_msg->param.input.type][i] = 0;
+      ret = RET_OK;
     }
   }
   return ret;
 }
 
+static void input_init()
+{
+  /* start timer to decode dial0 (rotary encoer) */
+  HAL_TIM_Encoder_Start(&htim5, TIM_CHANNEL_ALL);
+}
 
 static void input_checkStatus()
 {
+  /* state history. [0] = state(n-1), [1] = state(n-2) */
+  static GPIO_PinState s_btnMode[2]   = {GPIO_PIN_SET, GPIO_PIN_SET};
+  static GPIO_PinState s_btnCap[2]    = {GPIO_PIN_SET, GPIO_PIN_SET};
+  static GPIO_PinState s_btnOther0[2] = {GPIO_PIN_SET, GPIO_PIN_SET};
+  static uint32_t      s_dial0 = 0;
+  GPIO_PinState btn;
 
+  /* check mode button */
+  btn = HAL_GPIO_ReadPin(BTN_MODE_GPIO_Port, BTN_MODE_Pin);
+  if( (btn != s_btnMode[1]) && (btn == s_btnMode[0]) ){
+    s_btnMode[1] = s_btnMode[0];
+    if (btn == 0) input_notify(INPUT_TYPE_KEY_MODE, btn);
+  }
+  if(btn != s_btnMode[0]){
+    s_btnMode[1] = s_btnMode[0];
+    s_btnMode[0] = btn;
+  }
+
+  /* check cap button */
+  btn = HAL_GPIO_ReadPin(BTN_CAP_GPIO_Port, BTN_CAP_Pin);
+  if( (btn != s_btnCap[1]) && (btn == s_btnCap[0]) ){
+    s_btnCap[1] = s_btnCap[0];
+    if (btn == 0) input_notify(INPUT_TYPE_KEY_CAP, btn);
+  }
+  if(btn != s_btnCap[0]){
+    s_btnCap[1] = s_btnCap[0];
+    s_btnCap[0] = btn;
+  }
+
+  /* check other0 button */
+  btn = HAL_GPIO_ReadPin(BTN_OTHER0_GPIO_Port, BTN_OTHER0_Pin);
+  if( (btn != s_btnOther0[1]) && (btn == s_btnOther0[0]) ){
+    s_btnOther0[1] = s_btnOther0[0];
+    if (btn == 0) input_notify(INPUT_TYPE_KEY_OTHER0, btn);
+  }
+  if(btn != s_btnOther0[0]){
+    s_btnOther0[1] = s_btnOther0[0];
+    s_btnOther0[0] = btn;
+  }
+
+  /* check dial 0(rotary encoder) */
+  uint32_t cnt = htim5.Instance->CNT;
+  if(cnt != s_dial0){
+    input_notify(INPUT_TYPE_DIAL0, cnt - s_dial0);
+  }
+  s_dial0 = cnt;
+
+}
+
+static void input_notify(INPUT_TYPE type, int16_t status)
+{
+  for(uint32_t i = 0; i < INPUT_MAX_REGISTER_NUM; i++) {
+    if (s_registeredId[type][i] != 0) {
+      MSG_STRUCT *p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+      p_sendMsg->sender  = INPUT;
+      p_sendMsg->command = CMD_NOTIFY_INPUT;
+      p_sendMsg->param.input.type = type;
+      p_sendMsg->param.input.status = status;
+      osMessagePut(getQueueId(s_registeredId[type][i]), (uint32_t)p_sendMsg, osWaitForever);
+    }
+  }
 }

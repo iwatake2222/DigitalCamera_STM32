@@ -20,8 +20,12 @@ typedef enum {
 static STATUS s_status = INACTIVE;
 
 /*** Internal Function Declarations ***/
-static RET playbackCtrl_procInactive(MSG_STRUCT *p_msg);
-static RET playbackCtrl_procActive(MSG_STRUCT *p_msg);
+static void playbackCtrl_sendComp(MSG_STRUCT *p_recvMmsg, RET ret);
+static void playbackCtrl_procInactive(MSG_STRUCT *p_msg);
+static void playbackCtrl_procActive(MSG_STRUCT *p_msg);
+static RET playbackCtrl_init();
+static RET playbackCtrl_exit();
+
 
 /*** External Function Defines ***/
 void playbackCtrl_task(void const * argument)
@@ -48,46 +52,102 @@ void playbackCtrl_task(void const * argument)
 }
 
 /*** Internal Function Defines ***/
-static RET playbackCtrl_procInactive(MSG_STRUCT *p_msg)
+static void playbackCtrl_sendComp(MSG_STRUCT *p_recvMmsg, RET ret)
 {
+  MSG_STRUCT *p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+  p_sendMsg->sender  = PLAYBACK_CTRL;
+  p_sendMsg->command = COMMAND_COMP(p_recvMmsg->command);
+  p_sendMsg->param.val = ret;
+  osMessagePut(getQueueId(p_recvMmsg->sender), (uint32_t)p_sendMsg, osWaitForever);
+}
+
+static void playbackCtrl_procInactive(MSG_STRUCT *p_msg)
+{
+  if (IS_COMMAND_COMP(p_msg->command)) {
+    // do nothing when comp (may be comp from input)
+    return;
+  }
+
   RET ret;
-  if (p_msg->command == CMD_START) {
+  switch(p_msg->command){
+  case CMD_START:
     s_status = ACTIVE;
-    LOG("start\n");
-    // todo: init process comes here
-    ret = RET_OK;
-  } else {
+    ret = playbackCtrl_init();
+    playbackCtrl_sendComp(p_msg, ret);
+    break;
+  case CMD_STOP:
     LOG("status error\n");
-    ret = RET_ERR_STATUS;
+    playbackCtrl_sendComp(p_msg, RET_ERR_STATUS);
+    break;
+  case CMD_NOTIFY_INPUT:
+    LOG("status error\n");
+    break;
   }
-
-  /* return comp */
-  MSG_STRUCT *p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
-  p_sendMsg->sender  = PLAYBACK_CTRL;
-  p_sendMsg->command = COMMAND_COMP(p_msg->command);
-  p_sendMsg->param.val = ret;
-  osMessagePut(getQueueId(p_msg->sender), (uint32_t)p_sendMsg, osWaitForever);
-  return ret;
 }
 
-static RET playbackCtrl_procActive(MSG_STRUCT *p_msg)
+static void playbackCtrl_procActive(MSG_STRUCT *p_msg)
 {
-  RET ret;
-  if (p_msg->command == CMD_STOP) {
-    s_status = INACTIVE;
-    LOG("stop\n");
-    // todo: init process comes here
-    ret = RET_OK;
-  } else {
-    LOG("status error\n");
-    ret = RET_ERR_STATUS;
+  if (IS_COMMAND_COMP(p_msg->command)) {
+    // do nothing when comp (may be comp from input)
+    return;
   }
 
-  /* return comp */
-  MSG_STRUCT *p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
-  p_sendMsg->sender  = PLAYBACK_CTRL;
-  p_sendMsg->command = COMMAND_COMP(p_msg->command);
-  p_sendMsg->param.val = ret;
-  osMessagePut(getQueueId(p_msg->sender), (uint32_t)p_sendMsg, osWaitForever);
-  return ret;
+  RET ret;
+  switch(p_msg->command){
+  case CMD_START:
+    playbackCtrl_sendComp(p_msg, RET_ERR_STATUS);
+    break;
+  case CMD_STOP:
+    s_status = INACTIVE;
+    ret = playbackCtrl_exit();
+    playbackCtrl_sendComp(p_msg, ret);
+    break;
+  case CMD_NOTIFY_INPUT:
+    LOG("input: %d %d\n", p_msg->param.input.type, p_msg->param.input.status);
+    break;
+  }
 }
+
+static RET playbackCtrl_init()
+{
+  /*** register input ***/
+  MSG_STRUCT *p_sendMsg;
+  /* register to be notified when mode key pressed */
+  p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+  p_sendMsg->command = CMD_REGISTER;
+  p_sendMsg->sender  = PLAYBACK_CTRL;
+  p_sendMsg->param.input.type = INPUT_TYPE_KEY_OTHER0;
+  osMessagePut(getQueueId(INPUT), (uint32_t)p_sendMsg, osWaitForever);
+
+  /* register to be notified when capture key pressed */
+  p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+  p_sendMsg->command = CMD_REGISTER;
+  p_sendMsg->sender  = PLAYBACK_CTRL;
+  p_sendMsg->param.input.type = INPUT_TYPE_DIAL0;
+  osMessagePut(getQueueId(INPUT), (uint32_t)p_sendMsg, osWaitForever);
+
+  return RET_OK;
+}
+
+static RET playbackCtrl_exit()
+{
+  /*** unregister input ***/
+  MSG_STRUCT *p_sendMsg;
+  /* register to be notified when mode key pressed */
+  p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+  p_sendMsg->command = CMD_UNREGISTER;
+  p_sendMsg->sender  = PLAYBACK_CTRL;
+  p_sendMsg->param.input.type = INPUT_TYPE_KEY_OTHER0;
+  osMessagePut(getQueueId(INPUT), (uint32_t)p_sendMsg, osWaitForever);
+
+  /* register to be notified when capture key pressed */
+  p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+  p_sendMsg->command = CMD_UNREGISTER;
+  p_sendMsg->sender  = PLAYBACK_CTRL;
+  p_sendMsg->param.input.type = INPUT_TYPE_DIAL0;
+  osMessagePut(getQueueId(INPUT), (uint32_t)p_sendMsg, osWaitForever);
+
+  return RET_OK;
+}
+
+

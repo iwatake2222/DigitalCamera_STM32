@@ -20,8 +20,9 @@ typedef enum {
 static STATUS s_status = INACTIVE;
 
 /*** Internal Function Declarations ***/
-static RET liveviewCtrl_procInactive(MSG_STRUCT *p_msg);
-static RET liveviewCtrl_procActive(MSG_STRUCT *p_msg);
+static void liveviewCtrl_sendComp(MSG_STRUCT *p_recvMmsg, RET ret);
+static void liveviewCtrl_procInactive(MSG_STRUCT *p_msg);
+static void liveviewCtrl_procActive(MSG_STRUCT *p_msg);
 static RET liveviewCtrl_init();
 static RET liveviewCtrl_exit();
 
@@ -50,58 +51,60 @@ void liveviewCtrl_task(void const * argument)
 }
 
 /*** Internal Function Defines ***/
-static RET liveviewCtrl_procInactive(MSG_STRUCT *p_msg)
+static void liveviewCtrl_sendComp(MSG_STRUCT *p_recvMmsg, RET ret)
 {
-  RET ret;
-
-  if (IS_COMMAND_COMP(p_msg->command)) {
-    // do nothing when comp (may be comp from input)
-    return RET_OK;
-  }
-
-  if (p_msg->command == CMD_START) {
-    s_status = ACTIVE;
-    LOG("start\n");
-    ret = liveviewCtrl_init();
-  } else {
-    LOG("status error\n");
-    ret = RET_ERR_STATUS;
-  }
-
-  /* return comp */
   MSG_STRUCT *p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
   p_sendMsg->sender  = LIVEVIEW_CTRL;
-  p_sendMsg->command = COMMAND_COMP(p_msg->command);
+  p_sendMsg->command = COMMAND_COMP(p_recvMmsg->command);
   p_sendMsg->param.val = ret;
-  osMessagePut(getQueueId(p_msg->sender), (uint32_t)p_sendMsg, osWaitForever);
-  return ret;
+  osMessagePut(getQueueId(p_recvMmsg->sender), (uint32_t)p_sendMsg, osWaitForever);
 }
 
-static RET liveviewCtrl_procActive(MSG_STRUCT *p_msg)
+static void liveviewCtrl_procInactive(MSG_STRUCT *p_msg)
 {
-  RET ret;
-
   if (IS_COMMAND_COMP(p_msg->command)) {
     // do nothing when comp (may be comp from input)
-    return RET_OK;
+    return;
   }
 
-  if (p_msg->command == CMD_STOP) {
-    s_status = INACTIVE;
-    LOG("stop\n");
-    ret = liveviewCtrl_exit();
-  } else {
+  RET ret;
+  switch(p_msg->command){
+  case CMD_START:
+    s_status = ACTIVE;
+    ret = liveviewCtrl_init();
+    liveviewCtrl_sendComp(p_msg, ret);
+    break;
+  case CMD_STOP:
     LOG("status error\n");
-    ret = RET_ERR_STATUS;
+    liveviewCtrl_sendComp(p_msg, RET_ERR_STATUS);
+    break;
+  case CMD_NOTIFY_INPUT:
+    LOG("status error\n");
+    break;
+  }
+}
+
+static void liveviewCtrl_procActive(MSG_STRUCT *p_msg)
+{
+  if (IS_COMMAND_COMP(p_msg->command)) {
+    // do nothing when comp (may be comp from input)
+    return;
   }
 
-  /* return comp */
-  MSG_STRUCT *p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
-  p_sendMsg->sender  = LIVEVIEW_CTRL;
-  p_sendMsg->command = COMMAND_COMP(p_msg->command);
-  p_sendMsg->param.val = ret;
-  osMessagePut(getQueueId(p_msg->sender), (uint32_t)p_sendMsg, osWaitForever);
-  return ret;
+  RET ret;
+  switch(p_msg->command){
+  case CMD_START:
+    liveviewCtrl_sendComp(p_msg, RET_ERR_STATUS);
+    break;
+  case CMD_STOP:
+    s_status = INACTIVE;
+    ret = liveviewCtrl_exit();
+    liveviewCtrl_sendComp(p_msg, ret);
+    break;
+  case CMD_NOTIFY_INPUT:
+    LOG("input: %d %d\n", p_msg->param.input.type, p_msg->param.input.status);
+    break;
+  }
 }
 
 static RET liveviewCtrl_init()
