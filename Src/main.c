@@ -80,10 +80,12 @@ osThreadId ModeMgrHandle;
 osThreadId LiveviewCtrlHandle;
 osThreadId CaptureCtrlHandle;
 osThreadId PlaybackCtrlHandle;
+osThreadId InputHandle;
 osMessageQId QueueModeMgrHandle;
 osMessageQId QueueLiveviewCtrlHandle;
 osMessageQId QueueCaptureCtrlHandle;
 osMessageQId QueuePlaybackCtrlHandle;
+osMessageQId QueueInputHandle;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
@@ -106,6 +108,7 @@ extern void modeMgr_task(void const * argument);
 extern void liveviewCtrl_task(void const * argument);
 extern void captureCtrl_task(void const * argument);
 extern void playbackCtrl_task(void const * argument);
+extern void input_task(void const * argument);
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
@@ -124,6 +127,8 @@ osMessageQId getQueueId(MODULE_ID moduleId)
     return QueueCaptureCtrlHandle;
   case PLAYBACK_CTRL:
     return QueuePlaybackCtrlHandle;
+  case INPUT:
+    return QueueInputHandle;
   default:
     return 0;
   }
@@ -220,26 +225,34 @@ int main(void)
   osThreadDef(PlaybackCtrl, playbackCtrl_task, osPriorityNormal, 0, 128);
   PlaybackCtrlHandle = osThreadCreate(osThread(PlaybackCtrl), NULL);
 
+  /* definition and creation of Input */
+  osThreadDef(Input, input_task, osPriorityAboveNormal, 0, 128);
+  InputHandle = osThreadCreate(osThread(Input), NULL);
+
   /* USER CODE BEGIN RTOS_THREADS */
 
   /* USER CODE END RTOS_THREADS */
 
   /* Create the queue(s) */
   /* definition and creation of QueueModeMgr */
-  osMessageQDef(QueueModeMgr, 4, 4);
+  osMessageQDef(QueueModeMgr, 4, uint32_t);
   QueueModeMgrHandle = osMessageCreate(osMessageQ(QueueModeMgr), NULL);
 
   /* definition and creation of QueueLiveviewCtrl */
-  osMessageQDef(QueueLiveviewCtrl, 4, 4);
+  osMessageQDef(QueueLiveviewCtrl, 4, uint32_t);
   QueueLiveviewCtrlHandle = osMessageCreate(osMessageQ(QueueLiveviewCtrl), NULL);
 
   /* definition and creation of QueueCaptureCtrl */
-  osMessageQDef(QueueCaptureCtrl, 4, 4);
+  osMessageQDef(QueueCaptureCtrl, 4, uint32_t);
   QueueCaptureCtrlHandle = osMessageCreate(osMessageQ(QueueCaptureCtrl), NULL);
 
   /* definition and creation of QueuePlaybackCtrl */
-  osMessageQDef(QueuePlaybackCtrl, 4, 4);
+  osMessageQDef(QueuePlaybackCtrl, 4, uint32_t);
   QueuePlaybackCtrlHandle = osMessageCreate(osMessageQ(QueuePlaybackCtrl), NULL);
+
+  /* definition and creation of QueueInput */
+  osMessageQDef(QueueInput, 4, uint32_t);
+  QueueInputHandle = osMessageCreate(osMessageQ(QueueInput), NULL);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* create memory pool for message b/w modules */

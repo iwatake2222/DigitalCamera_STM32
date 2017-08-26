@@ -9,6 +9,7 @@
 #define COMMONHIGH_H_
 
 typedef enum {
+  DUMMY,
   MODE_MGR,
   LIVEVIEW_CTRL,
   PLAYBACK_CTRL,
@@ -21,8 +22,8 @@ typedef enum {
   CMD_START,
   CMD_STOP,
   CMD_CAPTURE,
-  CMD_REGIST,
-  CMD_UNREGIST,
+  CMD_REGISTER,
+  CMD_UNREGISTER,
   CMD_NOTIFY_INPUT,
 } COMMAND;
 
@@ -33,7 +34,8 @@ typedef enum {
   INPUT_TYPE_KEY_MODE = 0,
   INPUT_TYPE_KEY_CAP,
   INPUT_TYPE_KEY_OTHER0,
-  INPUT_TYPE_DIAL_0,
+  INPUT_TYPE_DIAL0,
+  INPUT_TYPE_NUM,
 } INPUT_TYPE;
 
 
@@ -44,7 +46,7 @@ typedef struct {
     uint32_t  val;
     struct {
       int16_t type;
-      int16_t status;
+      int16_t status; // only for dial
     }input;
   }param;
 } MSG_STRUCT;

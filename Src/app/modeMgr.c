@@ -59,6 +59,7 @@ static ACTION *sp_currentAction;
 static MODE s_currentMode = MODE_BOOT;
 
 /*** Internal Function Declarations ***/
+static RET modeMgr_registInput();
 static RET modeMgr_setNewSequence(MSG_STRUCT* p_recvMsg);
 static RET modeMgr_doSequence();
 static RET modeMgr_doSequenceComp(MSG_STRUCT *p_recvMsg);
@@ -68,6 +69,8 @@ void modeMgr_task(void const * argument)
 {
   LOG("task start\n");
   osMessageQId myQueueId = getQueueId(MODE_MGR);
+
+  modeMgr_registInput();
 
   /* change mode by default (boot -> liveview) */
   sp_currentAction = &s_sequenceStart[0];
@@ -89,6 +92,9 @@ void modeMgr_task(void const * argument)
       case COMMAND_COMP(CMD_CAPTURE):
         modeMgr_doSequenceComp(p_recvMsg);
         break;
+      default:
+        // do nothing (comp from input may come here)
+        break;
       }
       freeMemoryPoolMessage(p_recvMsg);
     }
@@ -96,6 +102,28 @@ void modeMgr_task(void const * argument)
 }
 
 /*** Internal Function Defines ***/
+static RET modeMgr_registInput()
+{
+  MSG_STRUCT *p_sendMsg;
+
+  /* register to be notified when mode key pressed */
+  p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+  p_sendMsg->command = CMD_REGISTER;
+  p_sendMsg->sender  = MODE_MGR;
+  p_sendMsg->param.input.type = INPUT_TYPE_KEY_MODE;
+  osMessagePut(getQueueId(INPUT), (uint32_t)p_sendMsg, osWaitForever);
+
+  /* register to be notified when capture key pressed */
+  p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+  p_sendMsg->command = CMD_REGISTER;
+  p_sendMsg->sender  = MODE_MGR;
+  p_sendMsg->param.input.type = INPUT_TYPE_KEY_CAP;
+  osMessagePut(getQueueId(INPUT), (uint32_t)p_sendMsg, osWaitForever);
+
+  return RET_OK;
+}
+
+
 static RET modeMgr_setNewSequence(MSG_STRUCT* p_recvMsg)
 {
   if (sp_currentAction != 0) {
@@ -103,18 +131,18 @@ static RET modeMgr_setNewSequence(MSG_STRUCT* p_recvMsg)
     return RET_DO_NOTHING;
   }
 
-  if (p_recvMsg->param.input.status == 1) {
-    switch(p_recvMsg->param.input.type) {
-    case INPUT_TYPE_KEY_MODE:
-      sp_currentAction = &s_sequenceMode[s_currentMode][0];
-      break;
-    case INPUT_TYPE_KEY_CAP:
-      sp_currentAction = &s_sequenceCapture[s_currentMode][0];
-      break;
-    default:
-      return RET_DO_NOTHING;
-    }
+
+  switch(p_recvMsg->param.input.type) {
+  case INPUT_TYPE_KEY_MODE:
+    sp_currentAction = &s_sequenceMode[s_currentMode][0];
+    break;
+  case INPUT_TYPE_KEY_CAP:
+    sp_currentAction = &s_sequenceCapture[s_currentMode][0];
+    break;
+  default:
+    return RET_DO_NOTHING;
   }
+
 
   return RET_OK;
 }

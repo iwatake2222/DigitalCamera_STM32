@@ -22,6 +22,8 @@ static STATUS s_status = INACTIVE;
 /*** Internal Function Declarations ***/
 static RET liveviewCtrl_procInactive(MSG_STRUCT *p_msg);
 static RET liveviewCtrl_procActive(MSG_STRUCT *p_msg);
+static RET liveviewCtrl_init();
+static RET liveviewCtrl_exit();
 
 /*** External Function Defines ***/
 void liveviewCtrl_task(void const * argument)
@@ -51,11 +53,16 @@ void liveviewCtrl_task(void const * argument)
 static RET liveviewCtrl_procInactive(MSG_STRUCT *p_msg)
 {
   RET ret;
+
+  if (IS_COMMAND_COMP(p_msg->command)) {
+    // do nothing when comp (may be comp from input)
+    return RET_OK;
+  }
+
   if (p_msg->command == CMD_START) {
     s_status = ACTIVE;
     LOG("start\n");
-    // todo: init process comes here
-    ret = RET_OK;
+    ret = liveviewCtrl_init();
   } else {
     LOG("status error\n");
     ret = RET_ERR_STATUS;
@@ -73,11 +80,16 @@ static RET liveviewCtrl_procInactive(MSG_STRUCT *p_msg)
 static RET liveviewCtrl_procActive(MSG_STRUCT *p_msg)
 {
   RET ret;
+
+  if (IS_COMMAND_COMP(p_msg->command)) {
+    // do nothing when comp (may be comp from input)
+    return RET_OK;
+  }
+
   if (p_msg->command == CMD_STOP) {
     s_status = INACTIVE;
     LOG("stop\n");
-    // todo: init process comes here
-    ret = RET_OK;
+    ret = liveviewCtrl_exit();
   } else {
     LOG("status error\n");
     ret = RET_ERR_STATUS;
@@ -91,3 +103,47 @@ static RET liveviewCtrl_procActive(MSG_STRUCT *p_msg)
   osMessagePut(getQueueId(p_msg->sender), (uint32_t)p_sendMsg, osWaitForever);
   return ret;
 }
+
+static RET liveviewCtrl_init()
+{
+  /*** register input ***/
+  MSG_STRUCT *p_sendMsg;
+  /* register to be notified when mode key pressed */
+  p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+  p_sendMsg->command = CMD_REGISTER;
+  p_sendMsg->sender  = LIVEVIEW_CTRL;
+  p_sendMsg->param.input.type = INPUT_TYPE_KEY_OTHER0;
+  osMessagePut(getQueueId(INPUT), (uint32_t)p_sendMsg, osWaitForever);
+
+  /* register to be notified when capture key pressed */
+  p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+  p_sendMsg->command = CMD_REGISTER;
+  p_sendMsg->sender  = LIVEVIEW_CTRL;
+  p_sendMsg->param.input.type = INPUT_TYPE_DIAL0;
+  osMessagePut(getQueueId(INPUT), (uint32_t)p_sendMsg, osWaitForever);
+
+  return RET_OK;
+}
+
+static RET liveviewCtrl_exit()
+{
+  /*** unregister input ***/
+  MSG_STRUCT *p_sendMsg;
+  /* register to be notified when mode key pressed */
+  p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+  p_sendMsg->command = CMD_UNREGISTER;
+  p_sendMsg->sender  = LIVEVIEW_CTRL;
+  p_sendMsg->param.input.type = INPUT_TYPE_KEY_OTHER0;
+  osMessagePut(getQueueId(INPUT), (uint32_t)p_sendMsg, osWaitForever);
+
+  /* register to be notified when capture key pressed */
+  p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+  p_sendMsg->command = CMD_UNREGISTER;
+  p_sendMsg->sender  = LIVEVIEW_CTRL;
+  p_sendMsg->param.input.type = INPUT_TYPE_DIAL0;
+  osMessagePut(getQueueId(INPUT), (uint32_t)p_sendMsg, osWaitForever);
+
+  return RET_OK;
+}
+
+
