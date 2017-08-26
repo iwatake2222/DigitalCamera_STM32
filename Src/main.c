@@ -52,6 +52,7 @@
 
 /* USER CODE BEGIN Includes */
 #include "common.h"
+#include "commonHigh.h"
 //#include "./uartTerminal/uartTerminal.h"
 //#include "./debugMonitor/debugMonitor.h"
 //#include "./lcdIli9341/lcdIli9341.h"
@@ -79,9 +80,14 @@ osThreadId ModeMgrHandle;
 osThreadId LiveviewCtrlHandle;
 osThreadId CaptureCtrlHandle;
 osThreadId PlaybackCtrlHandle;
+osMessageQId QueueModeMgrHandle;
+osMessageQId QueueLiveviewCtrlHandle;
+osMessageQId QueueCaptureCtrlHandle;
+osMessageQId QueuePlaybackCtrlHandle;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
+osPoolId  MpoolMessageHandle;
 
 /* USER CODE END PV */
 
@@ -107,7 +113,31 @@ extern void playbackCtrl_task(void const * argument);
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
+osMessageQId getQueueId(MODULE_ID moduleId)
+{
+  switch(moduleId){
+  case MODE_MGR:
+    return QueueModeMgrHandle;
+  case LIVEVIEW_CTRL:
+    return QueueLiveviewCtrlHandle;
+  case CAPTURE_CTRL:
+    return QueueCaptureCtrlHandle;
+  case PLAYBACK_CTRL:
+    return QueuePlaybackCtrlHandle;
+  default:
+    return 0;
+  }
+}
 
+MSG_STRUCT *allocMemoryPoolMessage()
+{
+  return (MSG_STRUCT*)osPoolAlloc(MpoolMessageHandle);
+}
+
+void freeMemoryPoolMessage(MSG_STRUCT *p_message)
+{
+  osPoolFree(MpoolMessageHandle, p_message);
+}
 /* USER CODE END 0 */
 
 int main(void)
@@ -194,8 +224,27 @@ int main(void)
 
   /* USER CODE END RTOS_THREADS */
 
+  /* Create the queue(s) */
+  /* definition and creation of QueueModeMgr */
+  osMessageQDef(QueueModeMgr, 4, 4);
+  QueueModeMgrHandle = osMessageCreate(osMessageQ(QueueModeMgr), NULL);
+
+  /* definition and creation of QueueLiveviewCtrl */
+  osMessageQDef(QueueLiveviewCtrl, 4, 4);
+  QueueLiveviewCtrlHandle = osMessageCreate(osMessageQ(QueueLiveviewCtrl), NULL);
+
+  /* definition and creation of QueueCaptureCtrl */
+  osMessageQDef(QueueCaptureCtrl, 4, 4);
+  QueueCaptureCtrlHandle = osMessageCreate(osMessageQ(QueueCaptureCtrl), NULL);
+
+  /* definition and creation of QueuePlaybackCtrl */
+  osMessageQDef(QueuePlaybackCtrl, 4, 4);
+  QueuePlaybackCtrlHandle = osMessageCreate(osMessageQ(QueuePlaybackCtrl), NULL);
+
   /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
+  /* create memory pool for message b/w modules */
+  osPoolDef(MpoolMessage, 16, MSG_STRUCT);
+  MpoolMessageHandle = osPoolCreate(osPool(MpoolMessage));
   /* USER CODE END RTOS_QUEUES */
  
 

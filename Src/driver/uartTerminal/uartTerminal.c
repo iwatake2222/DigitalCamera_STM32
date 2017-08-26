@@ -27,7 +27,7 @@ RET uartTerminal_init(UART_HandleTypeDef *huart)
 //  while(1){
 //    uartTerminal_send(uartTerminal_recv());
 //  }
-  return OK;
+  return RET_OK;
 }
 
 RET uartTerminal_send(uint8_t data)
@@ -35,9 +35,9 @@ RET uartTerminal_send(uint8_t data)
   HAL_StatusTypeDef ret;
   ret = HAL_UART_Transmit(s_huart, &data, 1, 100);
   if (ret == HAL_OK ) {
-    return OK;
+    return RET_OK;
   } else {
-    return ERR;
+    return RET_ERR;
   }
 }
 
@@ -53,10 +53,10 @@ uint8_t uartTerminal_recv()
 RET uartTerminal_recvTry(uint8_t *data)
 {
   if (bufferRxWp == s_bufferRxRp)
-    return NO_DATA;
+    return RET_NO_DATA;
   *data = s_bufferRx[s_bufferRxRp++];
   s_bufferRxRp &= (BUFFER_SIZE - 1);
-  return OK;
+  return RET_OK;
 }
 
 /*** Internal Function Defines ***/

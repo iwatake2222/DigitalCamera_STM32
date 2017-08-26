@@ -45,7 +45,7 @@ RET ov7670_init(DCMI_HandleTypeDef *p_hdcmi, DMA_HandleTypeDef *p_hdma_dcmi, I2C
   printf("[OV7670] dev id = %02X\n", buffer[0]);
 
 
-  return OK;
+  return RET_OK;
 }
 
 RET ov7670_config(uint32_t mode)
@@ -57,7 +57,7 @@ RET ov7670_config(uint32_t mode)
     ov7670_write(OV7670_reg[i][0], OV7670_reg[i][1]);
     HAL_Delay(1);
   }
-  return OK;
+  return RET_OK;
 }
 
 RET ov7670_startCap(uint32_t capMode)
@@ -69,14 +69,14 @@ RET ov7670_startCap(uint32_t capMode)
     HAL_DCMI_Start_DMA(sp_hdcmi, DCMI_MODE_SNAPSHOT, lcdIli9341_getDrawAddress(), 320*120);
   }
 
-  return OK;
+  return RET_OK;
 }
 
 RET ov7670_stopCap()
 {
   HAL_DCMI_Stop(sp_hdcmi);
   HAL_Delay(30);
-  return OK;
+  return RET_OK;
 }
 
 void HAL_DCMI_FrameEventCallback(DCMI_HandleTypeDef *hdcmi)
@@ -97,7 +97,7 @@ static RET ov7670_write(uint8_t regAddr, uint8_t data)
   do {
     ret = HAL_I2C_Mem_Write(sp_hi2c, SLAVE_ADDR, regAddr, I2C_MEMADD_SIZE_8BIT, &data, 1, 1000);
   } while (ret != HAL_OK);
-  return OK;
+  return RET_OK;
 }
 
 static RET ov7670_read(uint8_t regAddr, uint8_t *data)
@@ -109,7 +109,7 @@ static RET ov7670_read(uint8_t regAddr, uint8_t *data)
     ret = HAL_I2C_Master_Transmit(sp_hi2c, SLAVE_ADDR, &regAddr, 1, 100);
     ret = HAL_I2C_Master_Receive(sp_hi2c, SLAVE_ADDR, data, 1, 100);
   } while (ret != HAL_OK);
-  return OK;
+  return RET_OK;
 }
 
 

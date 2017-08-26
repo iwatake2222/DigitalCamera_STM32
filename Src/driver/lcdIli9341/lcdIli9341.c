@@ -161,7 +161,7 @@ RET lcdIli9341_init()
   lcdIli9341_drawRect(0, 0, LCD_ILI9342_WIDTH, LCD_ILI9342_HEIGHT, 0xffff);
   lcdIli9341_setArea(0, 0, LCD_ILI9342_WIDTH - 1, LCD_ILI9342_HEIGHT - 1);
 
-  return OK;
+  return RET_OK;
 }
 
 /*** Internal Function Defines ***/

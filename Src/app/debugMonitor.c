@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "common.h"
+#include "commonHigh.h"
 #include "../driver/ov7670/ov7670.h"
 
 typedef struct {
@@ -31,7 +32,7 @@ static RET led(char *argv[], uint32_t argc)
   } else {
     HAL_GPIO_WritePin(LD4_GPIO_Port, LD4_Pin, GPIO_PIN_SET);
   }
-  return OK;
+  return RET_OK;
 }
 
 static RET cap(char *argv[], uint32_t argc)
@@ -44,7 +45,25 @@ static RET cap(char *argv[], uint32_t argc)
   } else {
     ov7670_stopCap();
   }
-  return OK;
+  return RET_OK;
+}
+
+static RET mode(char *argv[], uint32_t argc)
+{
+  uint32_t key = atoi(argv[0]);
+
+  MSG_STRUCT *p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+  p_sendMsg->sender  = INPUT;
+  p_sendMsg->command = CMD_NOTIFY_INPUT;
+  if(key == 0) {
+    p_sendMsg->param.input.type   = (int16_t)INPUT_TYPE_KEY_MODE;
+  } else if(key == 1) {
+    p_sendMsg->param.input.type   = (int16_t)INPUT_TYPE_KEY_CAP;
+  }
+  p_sendMsg->param.input.status   = 1;
+
+  osMessagePut(getQueueId(MODE_MGR), (uint32_t)p_sendMsg, 0);
+  return RET_OK;
 }
 
 static RET test1(char *argv[], uint32_t argc)
@@ -55,7 +74,7 @@ static RET test1(char *argv[], uint32_t argc)
     printf("argv[%d] = %s\n", i, argv[i]);
   }
   printf("a %d\n", atoi(argv[0]));
-  return OK;
+  return RET_OK;
 }
 
 static RET test2(char *argv[], uint32_t argc)
@@ -65,12 +84,13 @@ static RET test2(char *argv[], uint32_t argc)
   for (uint32_t i = 0; i < argc; i++) {
     printf("argv[%d] = %s\n", i, argv[i]);
   }
-  return OK;
+  return RET_OK;
 }
 
 DEBUG_MON_COMMAND s_debugCommands[] = {
   {"led",   led},
   {"cap",   cap},
+  {"mode",  mode},
   {"test1", test1},
   {"test2", test2},
   {(void*)0, (void*)0},
@@ -80,7 +100,7 @@ void debugMonitorDo()
 {
   static char s_storedCommand[DEBUG_MONITOR_BUFFER_SIZE];
   static uint32_t s_storedCommandIndex = 0;
-  if (uartTerminal_recvTry(&s_storedCommand[s_storedCommandIndex]) == OK) {
+  if (uartTerminal_recvTry(&s_storedCommand[s_storedCommandIndex]) == RET_OK) {
     /* echo back */
     putchar(s_storedCommand[s_storedCommandIndex]);
 
@@ -103,14 +123,14 @@ void debugMonitorDo()
       }
 
       /* call corresponding debug command */
-      RET ret = ERR;
+      RET ret = RET_ERR;
       for (uint32_t i = 0; s_debugCommands[i].cmd != (void*)0; i++) {
         if (strcmp(s_debugCommands[i].cmd, argv[0]) == 0) {
           ret = s_debugCommands[i].func(&argv[1], argc-1);
           printf(">");
         }
       }
-      if (ret != OK) debugMonitorShow();
+      if (ret != RET_OK) debugMonitorShow();
       s_storedCommandIndex = 0;
     } else {
       s_storedCommandIndex++;
