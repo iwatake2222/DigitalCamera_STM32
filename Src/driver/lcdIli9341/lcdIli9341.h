@@ -17,4 +17,7 @@ uint16_t* lcdIli9341_getDrawAddress();
 #define LCD_ILI9342_COLOR_GREEN  0x07e0
 #define LCD_ILI9342_COLOR_BLUE   0x001f
 
+#define LCD_ILI9342_WIDTH  320
+#define LCD_ILI9342_HEIGHT 240
+
 #endif /* LCDILI9341_LCDILI9341_H_ */

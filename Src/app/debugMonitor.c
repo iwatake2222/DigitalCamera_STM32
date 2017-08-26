@@ -39,9 +39,9 @@ static RET cap(char *argv[], uint32_t argc)
 {
   uint32_t start = atoi(argv[0]);
   if(start == 1) {
-    ov7670_startCap(OV7670_CAP_CONTINUOUS);
+    ov7670_startCap(OV7670_CAP_CONTINUOUS, lcdIli9341_getDrawAddress());
   } else if(start == 2) {
-    ov7670_startCap(OV7670_CAP_SINGLE_FRAME);
+    ov7670_startCap(OV7670_CAP_SINGLE_FRAME, lcdIli9341_getDrawAddress());
   } else {
     ov7670_stopCap();
   }

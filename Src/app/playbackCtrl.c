@@ -8,6 +8,7 @@
 #include "cmsis_os.h"
 #include "common.h"
 #include "commonHigh.h"
+#include "../hal/display.h"
 
 /*** Internal Const Values, Macros ***/
 #define LOG(str, ...) printf("[PB_CTRL] " str, ##__VA_ARGS__);
@@ -37,7 +38,7 @@ void playbackCtrl_task(void const * argument)
     osEvent event = osMessageGet(myQueueId, osWaitForever);
     if (event.status == osEventMessage) {
       MSG_STRUCT* p_recvMsg = event.value.p;
-      LOG("msg received: %08X %08X %08X\n", p_recvMsg->command, p_recvMsg->sender, p_recvMsg->param.val);
+//      LOG("msg received: %08X %08X %08X\n", p_recvMsg->command, p_recvMsg->sender, p_recvMsg->param.val);
       switch(s_status) {
       case INACTIVE:
         playbackCtrl_procInactive(p_recvMsg);
@@ -125,6 +126,10 @@ static RET playbackCtrl_init()
   p_sendMsg->sender  = PLAYBACK_CTRL;
   p_sendMsg->param.input.type = INPUT_TYPE_DIAL0;
   osMessagePut(getQueueId(INPUT), (uint32_t)p_sendMsg, osWaitForever);
+
+  /*** init display ***/
+  display_init();
+  display_drawRect(0, 0, 100, 100, DISPLAY_COLOR_RED);
 
   return RET_OK;
 }

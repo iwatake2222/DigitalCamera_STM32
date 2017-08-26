@@ -27,7 +27,7 @@ void captureCtrl_task(void const * argument)
     osEvent event = osMessageGet(myQueueId, osWaitForever);
     if (event.status == osEventMessage) {
       MSG_STRUCT* p_recvMsg = event.value.p;
-      LOG("msg received: %08X %08X %08X\n", p_recvMsg->command, p_recvMsg->sender, p_recvMsg->param.val);
+//      LOG("msg received: %08X %08X %08X\n", p_recvMsg->command, p_recvMsg->sender, p_recvMsg->param.val);
       captureCtrl_capture(p_recvMsg);
       freeMemoryPoolMessage(p_recvMsg);
     }

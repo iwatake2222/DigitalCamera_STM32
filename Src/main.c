@@ -183,13 +183,6 @@ int main(void)
   retarget_init();
   printf("Hello World\n");
 
-//  lcdIli9341_init();
-//  ov7670_init(&hdcmi, &hdma_dcmi, &hi2c2);
-//  printf("Device init done\n");
-//
-//  ov7670_config(OV7670_MODE_QVGA_RGB565);
-//  ov7670_startCap(OV7670_CAP_CONTINUOUS);
-//  printf("Camera config done\n");
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -270,10 +263,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    debugMonitorDo();
-//    lcdIli9341_drawRect(0, 0,   320, 80, LCD_ILI9342_COLOR_RED);
-//    lcdIli9341_drawRect(0, 80,  320, 80, LCD_ILI9342_COLOR_GREEN);
-//    lcdIli9341_drawRect(0, 160, 320, 80, LCD_ILI9342_COLOR_BLUE);
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */

@@ -8,6 +8,8 @@
 #include "cmsis_os.h"
 #include "common.h"
 #include "commonHigh.h"
+#include "../hal/display.h"
+#include "../hal/camera.h"
 
 /*** Internal Const Values, Macros ***/
 #define LOG(str, ...) printf("[LV_CTRL] " str, ##__VA_ARGS__);
@@ -36,7 +38,7 @@ void liveviewCtrl_task(void const * argument)
     osEvent event = osMessageGet(myQueueId, osWaitForever);
     if (event.status == osEventMessage) {
       MSG_STRUCT* p_recvMsg = event.value.p;
-      LOG("msg received: %08X %08X %08X\n", p_recvMsg->command, p_recvMsg->sender, p_recvMsg->param.val);
+//      LOG("msg received: %08X %08X %08X\n", p_recvMsg->command, p_recvMsg->sender, p_recvMsg->param.val);
       switch(s_status) {
       case INACTIVE:
         liveviewCtrl_procInactive(p_recvMsg);
@@ -125,6 +127,28 @@ static RET liveviewCtrl_init()
   p_sendMsg->param.input.type = INPUT_TYPE_DIAL0;
   osMessagePut(getQueueId(INPUT), (uint32_t)p_sendMsg, osWaitForever);
 
+  /*** init display ***/
+  display_init();
+  uint32_t pixelFormat = display_getPixelFormat();
+  uint32_t size = display_getDisplaySize();
+  if( size == DISPLAY_SIZE_QVGA ){
+    display_setArea(0, 0, 320-1, 240-1);
+  } else {
+    LOG("not supported\n");
+    return RET_ERR;
+  }
+
+  void* canvasHandle = display_getCanvasHandle();
+
+  /*** init camera ***/
+  camera_init();
+  if ( (pixelFormat == DISPLAY_PIXEL_FORMAT_RGB565) && (size == DISPLAY_SIZE_QVGA) ){
+    camera_config(CAMERA_MODE_QVGA_RGB565);
+  } else {
+    LOG("not supported\n");
+    return RET_ERR;
+  }
+  camera_startCap(CAMERA_CAP_CONTINUOUS, canvasHandle);
   return RET_OK;
 }
 
@@ -145,6 +169,9 @@ static RET liveviewCtrl_exit()
   p_sendMsg->sender  = LIVEVIEW_CTRL;
   p_sendMsg->param.input.type = INPUT_TYPE_DIAL0;
   osMessagePut(getQueueId(INPUT), (uint32_t)p_sendMsg, osWaitForever);
+
+  /*** stop camera ***/
+  camera_stopCap();
 
   return RET_OK;
 }

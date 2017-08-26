@@ -8,9 +8,6 @@
 #ifndef LCDILI9341_LCDILI9341CONFIG_H_
 #define LCDILI9341_LCDILI9341CONFIG_H_
 
-#define LCD_ILI9342_WIDTH  320
-#define LCD_ILI9342_HEIGHT 240
-
 #define BIT_WIDTH_16
 #define FSMC_Ax               16              // use A16 as RS
 #define FSMC_NEx              1               // use subbank 1

@@ -80,7 +80,7 @@ void modeMgr_task(void const * argument)
     osEvent event = osMessageGet(myQueueId, osWaitForever);
     if (event.status == osEventMessage) {
       MSG_STRUCT* p_recvMsg = event.value.p;
-      LOG("msg received: %08X %08X %08X\n", p_recvMsg->command, p_recvMsg->sender, p_recvMsg->param.val);
+//      LOG("msg received: %08X %08X %08X\n", p_recvMsg->command, p_recvMsg->sender, p_recvMsg->param.val);
       switch(p_recvMsg->command) {
       case CMD_NOTIFY_INPUT:
         if (modeMgr_setNewSequence(p_recvMsg) == RET_OK) {

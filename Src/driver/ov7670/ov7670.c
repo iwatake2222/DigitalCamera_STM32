@@ -60,13 +60,13 @@ RET ov7670_config(uint32_t mode)
   return RET_OK;
 }
 
-RET ov7670_startCap(uint32_t capMode)
+RET ov7670_startCap(uint32_t capMode, uint16_t* destAddress)
 {
   ov7670_stopCap();
   if (capMode == OV7670_CAP_CONTINUOUS) {
-    HAL_DCMI_Start_DMA(sp_hdcmi, DCMI_MODE_CONTINUOUS, lcdIli9341_getDrawAddress(), 320*120);
+    HAL_DCMI_Start_DMA(sp_hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)destAddress, 320*120);
   } else if (capMode == OV7670_CAP_SINGLE_FRAME) {
-    HAL_DCMI_Start_DMA(sp_hdcmi, DCMI_MODE_SNAPSHOT, lcdIli9341_getDrawAddress(), 320*120);
+    HAL_DCMI_Start_DMA(sp_hdcmi, DCMI_MODE_SNAPSHOT, (uint32_t)destAddress, 320*120);
   }
 
   return RET_OK;
@@ -81,12 +81,12 @@ RET ov7670_stopCap()
 
 void HAL_DCMI_FrameEventCallback(DCMI_HandleTypeDef *hdcmi)
 {
-  printf("FRAME %d\n", HAL_GetTick());
+//  printf("FRAME %d\n", HAL_GetTick());
 }
 
 void HAL_DCMI_VsyncEventCallback(DCMI_HandleTypeDef *hdcmi)
 {
-  printf("VSYNC %d\n", HAL_GetTick());
+//  printf("VSYNC %d\n", HAL_GetTick());
   HAL_DMA_Start_IT(hdcmi->DMA_Handle, (uint32_t)&hdcmi->Instance->DR, (uint32_t)lcdIli9341_getDrawAddress(), 320*120);
 }
 
