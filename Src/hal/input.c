@@ -44,7 +44,7 @@ void input_task(void const * argument)
     osEvent event = osMessageGet(myQueueId, INPUT_TASK_INTERVAL);
     if (event.status == osEventMessage) {
       MSG_STRUCT* p_recvMsg = event.value.p;
-      LOG("msg received: %08X %08X %08X\n", p_recvMsg->command, p_recvMsg->sender, p_recvMsg->param.val);
+//      LOG("msg received: %08X %08X %08X\n", p_recvMsg->command, p_recvMsg->sender, p_recvMsg->param.val);
       if(p_recvMsg->command == CMD_REGISTER) {
         ret = input_regist(p_recvMsg);
       } else if(p_recvMsg->command == CMD_UNREGISTER) {
@@ -110,6 +110,7 @@ static void input_checkStatus()
   static GPIO_PinState s_btnOther0[2] = {GPIO_PIN_SET, GPIO_PIN_SET};
   static uint32_t      s_dial0 = 0;
   GPIO_PinState btn;
+
 
   /* check mode button */
   btn = HAL_GPIO_ReadPin(BTN_MODE_GPIO_Port, BTN_MODE_Pin);

@@ -13,13 +13,8 @@
 #include "ov7670Reg.h"
 
 /*** Internal Const Values, Macros ***/
-#define DCMI_DR_ADDRESS       0x50050028
 
-#define I2C_WAIT_EVENT(EVENT) {\
-    for(uint32_t WAIT_NUM = 0; (WAIT_NUM <= I2C_TIMEOUT) && !I2C_CheckEvent(I2Cx, EVENT); WAIT_NUM++){\
-      if(WAIT_NUM == I2C_TIMEOUT) {printf("err\n");return ERR_TIMEOUT;}\
-    }\
-}
+
 
 /*** Internal Static Variables ***/
 DCMI_HandleTypeDef *sp_hdcmi;
@@ -95,9 +90,9 @@ static RET ov7670_write(uint8_t regAddr, uint8_t data)
 {
   HAL_StatusTypeDef ret;
   do {
-    ret = HAL_I2C_Mem_Write(sp_hi2c, SLAVE_ADDR, regAddr, I2C_MEMADD_SIZE_8BIT, &data, 1, 1000);
-  } while (ret != HAL_OK);
-  return RET_OK;
+    ret = HAL_I2C_Mem_Write(sp_hi2c, SLAVE_ADDR, regAddr, I2C_MEMADD_SIZE_8BIT, &data, 1, 100);
+  } while (ret != HAL_OK && 0);
+  return ret;
 }
 
 static RET ov7670_read(uint8_t regAddr, uint8_t *data)
@@ -107,9 +102,9 @@ static RET ov7670_read(uint8_t regAddr, uint8_t *data)
     // HAL_I2C_Mem_Read doesn't work (because of SCCB protocol(doesn't have ack))? */
 //    ret = HAL_I2C_Mem_Read(sp_hi2c, SLAVE_ADDR, regAddr, I2C_MEMADD_SIZE_8BIT, data, 1, 1000);
     ret = HAL_I2C_Master_Transmit(sp_hi2c, SLAVE_ADDR, &regAddr, 1, 100);
-    ret = HAL_I2C_Master_Receive(sp_hi2c, SLAVE_ADDR, data, 1, 100);
-  } while (ret != HAL_OK);
-  return RET_OK;
+    ret |= HAL_I2C_Master_Receive(sp_hi2c, SLAVE_ADDR, data, 1, 100);
+  } while (ret != HAL_OK && 0);
+  return ret;
 }
 
 

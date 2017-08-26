@@ -16,13 +16,51 @@
 #include <stdlib.h>
 #include "common.h"
 #include "commonHigh.h"
+#include "ff.h"
 #include "../driver/ov7670/ov7670.h"
+
+
 
 typedef struct {
   char* cmd;
   RET (*func)(char *argv[], uint32_t argc);
 } DEBUG_MON_COMMAND;
 
+
+static RET fatfs(char *argv[], uint32_t argc)
+{
+  FATFS FatFs;  // should allocate heap, but use stack as it is debug code
+  FIL Fil;      // should allocate heap, but use stack as it is debug code
+  FRESULT ret;
+  uint32_t n;
+  uint8_t buff[4];
+
+  ret = f_mount(&FatFs, "", 0);
+  printf("f_mount: %d\n", ret);
+
+  ret = f_mkdir("aaa");
+  printf("f_mkdir: %d\n", ret);
+
+  ret = f_open(&Fil, "test1.txt", FA_WRITE);
+  printf("f_open: %d\n", ret);
+
+  ret = f_write(&Fil, "abc", 4, &n);
+  printf("f_write: %d\n", ret);
+
+  ret = f_close(&Fil);
+  printf("f_close: %d\n", ret);
+
+  ret = f_open(&Fil, "test1.txt", FA_READ);
+  printf("f_open: %d\n", ret);
+
+  ret = f_read(&Fil, buff, 4, &n);
+  printf("f_read: %d, %s\n", ret, buff);
+
+  ret = f_mount(0, "", 0);
+  printf("f_mount: %d\n", ret);
+
+  return RET_OK;
+}
 
 static RET led(char *argv[], uint32_t argc)
 {
@@ -88,6 +126,7 @@ static RET test2(char *argv[], uint32_t argc)
 }
 
 DEBUG_MON_COMMAND s_debugCommands[] = {
+  {"fatfs", fatfs},
   {"led",   led},
   {"cap",   cap},
   {"mode",  mode},
@@ -154,4 +193,5 @@ void debugMonitor_task(void const * argument)
     osDelay(1);
   }
 }
+
 
