@@ -59,7 +59,7 @@ RET file_seekFileNext(char* filename)
   FILINFO fileinfo;
   while(1){
     FILINFO fileinfo;
-    ret |= f_readdir(&s_dir, &fileinfo);
+    ret = f_readdir(&s_dir, &fileinfo);
     if (ret != FR_OK) return RET_ERR;
     if (fileinfo.fname[0] == 0) return RET_NO_DATA;
     if (fileinfo.fname[0] == '.') continue;
@@ -91,7 +91,7 @@ RET file_load(void* destAddress, uint32_t numByte, uint32_t* p_numByte)
 {
   FRESULT ret;
   uint32_t actualNum;
-  ret = f_read(&s_fil, destAddress, numByte, &p_numByte);
+  ret = f_read(&s_fil, destAddress, numByte, p_numByte);
   return ret;
 }
 
