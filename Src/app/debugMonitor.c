@@ -27,6 +27,39 @@ typedef struct {
 } DEBUG_MON_COMMAND;
 
 
+static RET ls(char *argv[], uint32_t argc)
+{
+  FATFS FatFs;  // should allocate heap, but use stack as it is debug code
+  DIR Dir;
+  FRESULT ret;
+
+  ret = f_mount(&FatFs, "", 0);
+  if(argc > 0) {
+    ret = f_opendir(&Dir, argv[0]);
+  } else {
+    ret = f_opendir(&Dir, "/");
+  }
+
+  while(1){
+    FILINFO fileinfo;
+    ret |= f_readdir(&Dir, &fileinfo);
+    if (ret != FR_OK || fileinfo.fname[0] == 0) break;
+    if (fileinfo.fname[0] == '.') continue;
+    if ( (fileinfo.fattrib & AM_SYS) == AM_SYS ) continue;
+
+    printf("%s", fileinfo.fname);
+    if(fileinfo.fattrib & AM_DIR) printf("/");
+    printf("\n");
+  }
+
+  ret |= f_closedir(&Dir);
+  ret |= f_mount(0, "", 0);
+
+  if(ret != RET_OK) printf("err: %d\n", ret);
+
+  return RET_OK;
+}
+
 static RET fatfs(char *argv[], uint32_t argc)
 {
   FATFS FatFs;  // should allocate heap, but use stack as it is debug code
@@ -126,6 +159,7 @@ static RET test2(char *argv[], uint32_t argc)
 }
 
 DEBUG_MON_COMMAND s_debugCommands[] = {
+  {"ls", ls},
   {"fatfs", fatfs},
   {"led",   led},
   {"cap",   cap},
