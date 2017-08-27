@@ -74,6 +74,8 @@
 #define BTN_MODE_GPIO_Port GPIOC
 #define BTN_OTHER0_Pin GPIO_PIN_3
 #define BTN_OTHER0_GPIO_Port GPIOC
+#define CAMERA_RESET_Pin GPIO_PIN_5
+#define CAMERA_RESET_GPIO_Port GPIOC
 #define BOOT1_Pin GPIO_PIN_2
 #define BOOT1_GPIO_Port GPIOB
 #define LD4_Pin GPIO_PIN_12
