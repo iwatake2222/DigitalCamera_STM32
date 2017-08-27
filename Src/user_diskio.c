@@ -118,12 +118,12 @@ static BYTE CardType;      /* Card type flags */
 /*-----------------------------------------------------------------------*/
 /* SPI controls (Platform dependent)                                     */
 /*-----------------------------------------------------------------------*/
-void FCLK_SLOW()
+static void FCLK_SLOW()
 {
   // there should be better way...
   hspi1.Instance->CR1 = (hspi1.Instance->CR1 & 0xffffffC7) | SPI_BAUDRATEPRESCALER_256;
 }
-void FCLK_FAST()
+static void FCLK_FAST()
 {
   // there should be better way...
   hspi1.Instance->CR1 = (hspi1.Instance->CR1 & 0xffffffC7) | SPI_BAUDRATEPRESCALER_2;
