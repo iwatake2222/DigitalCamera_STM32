@@ -17,6 +17,7 @@
 #define LOG_E(str, ...) printf("[PB_CTRL_ERR:%d] " str, __LINE__, ##__VA_ARGS__);
 #define PLAY_SIZE_WIDTH  320
 #define PLAY_SIZE_HEIGHT 240
+#define MOTION_JPEG_FPS_MSEC  100   //(10fps)
 
 // need to modify jdatasrc.c
 #define INPUT_BUF_SIZE  512  /* choose an efficiently fread'able size */
@@ -24,10 +25,15 @@
 typedef enum {
   INACTIVE,
   ACTIVE,
+  MOVIE_PLAYING,
+  MOVIE_PAUSE,
 } STATUS;
 
 /*** Internal Static Variables ***/
 static STATUS s_status = INACTIVE;
+
+static uint8_t* sp_movieLineBuffRGB888;   // line buffer for motion jpeg
+static FIL*     sp_movieFil;              // file for motion jpeg
 
 /*** Internal Function Declarations ***/
 static void playbackCtrl_sendComp(MSG_STRUCT *p_recvMmsg, RET ret);
@@ -40,19 +46,30 @@ static RET playbackCtrl_isFileJPEG(char *filename);
 static RET playbackCtrl_isFileRGB565(char *filename);
 static RET playbackCtrl_playRGB565(char* filename);
 static RET playbackCtrl_playJPEG(char* filename);
+static RET playbackCtrl_isFileMotionJPEG(char *filename);
 static RET playbackCtrl_decodeJpeg(FIL *file, uint32_t maxWidth, uint32_t maxHeight, uint8_t * pLineBuffRGB888);
 static void playbackCtrl_libjpeg_output_message (j_common_ptr cinfo);
 static void playbackCtrl_drawRGB888 (uint8_t* rgb888, uint32_t width);
 static RET playbackCtrl_calcJpegOutputSize(struct jpeg_decompress_struct* pCinfo, uint32_t maxWidth, uint32_t maxHeight);
+static RET playbackCtrl_playMotionJPEGStart(char* filename);
+static RET playbackCtrl_playMotionJPEGStop();
+static RET playbackCtrl_playMotionJPEGNext();
 
 /*** External Function Defines ***/
 void playbackCtrl_task(void const * argument)
 {
   LOG("task start\n");
   osMessageQId myQueueId = getQueueId(PLAYBACK_CTRL);
+  uint32_t waitTimeForFPS = MOTION_JPEG_FPS_MSEC;
 
   while(1) {
-    osEvent event = osMessageGet(myQueueId, osWaitForever);
+    osEvent event;
+    if(s_status == MOVIE_PLAYING) {
+      /* fps for movie play is controlled by wait timeout */
+      event = osMessageGet(myQueueId, waitTimeForFPS);
+    } else {
+      event = osMessageGet(myQueueId, osWaitForever);
+    }
     if (event.status == osEventMessage) {
       MSG_STRUCT* p_recvMsg = event.value.p;
 //      LOG("msg received: %08X %08X %08X\n", p_recvMsg->command, p_recvMsg->sender, p_recvMsg->param.val);
@@ -61,10 +78,22 @@ void playbackCtrl_task(void const * argument)
         playbackCtrl_procInactive(p_recvMsg);
         break;
       case ACTIVE:
+      case MOVIE_PLAYING:
+      case MOVIE_PAUSE:
         playbackCtrl_procActive(p_recvMsg);
         break;
       }
       freeMemoryPoolMessage(p_recvMsg);
+    } else if (event.status == osEventTimeout) {
+      uint32_t startTime = HAL_GetTick();
+      playbackCtrl_playMotionJPEGNext();
+      uint32_t playTime = HAL_GetTick() - startTime;
+      // adjust fps
+      if(playTime > MOTION_JPEG_FPS_MSEC) {
+        waitTimeForFPS = 1;
+      } else {
+        waitTimeForFPS = MOTION_JPEG_FPS_MSEC - playTime;
+      }
     }
   }
 }
@@ -91,6 +120,9 @@ static void playbackCtrl_procInactive(MSG_STRUCT *p_msg)
   case CMD_START:
     ret = playbackCtrl_init();
     if(ret == RET_OK) s_status = ACTIVE;
+    /*** display the first image ***/
+    ret |= playbackCtrl_playNext();
+    if(ret != RET_OK) LOG_E("\n");
     playbackCtrl_sendComp(p_msg, ret);
     break;
   case CMD_STOP:
@@ -125,6 +157,12 @@ static void playbackCtrl_procActive(MSG_STRUCT *p_msg)
     LOG("input: %d %d\n", p_msg->param.input.type, p_msg->param.input.status);
     if(p_msg->param.input.type == INPUT_TYPE_DIAL0) {
       playbackCtrl_playNext();
+    } else if(p_msg->param.input.type == INPUT_TYPE_KEY_OTHER0) {
+      if(s_status == MOVIE_PLAYING) {
+        s_status = MOVIE_PAUSE;
+      } else if(s_status == MOVIE_PAUSE) {
+        s_status = MOVIE_PLAYING;
+      }
     }
     break;
   }
@@ -158,10 +196,6 @@ static RET playbackCtrl_init()
   ret = file_seekStart("/");
   if(ret != RET_OK) LOG_E("\n");
 
-  /*** display the first image ***/
-  ret = playbackCtrl_playNext();
-  if(ret != RET_OK) LOG_E("\n");
-
   LOG("init %d\n", ret);
 
   return ret;
@@ -186,6 +220,11 @@ static RET playbackCtrl_exit()
   p_sendMsg->param.input.type = INPUT_TYPE_DIAL0;
   osMessagePut(getQueueId(INPUT), (uint32_t)p_sendMsg, osWaitForever);
 
+  /*** exit movie play if playing ***/
+  if( (s_status == MOVIE_PLAYING) || (s_status == MOVIE_PAUSE) ) {
+    playbackCtrl_playMotionJPEGStop();
+  }
+
   /*** exit file ***/
   ret = file_seekStop();
 
@@ -198,11 +237,18 @@ static RET playbackCtrl_playNext()
 {
   RET ret;
   char filename[16];
+
+  /* exit movie play if playing */
+  if( (s_status == MOVIE_PLAYING) || (s_status == MOVIE_PAUSE) ) {
+    playbackCtrl_playMotionJPEGStop();
+  }
+
   ret = file_seekFileNext(filename);
   if(ret == RET_OK) {
     LOG("play %s\n", filename);
     if(playbackCtrl_isFileRGB565(filename) == RET_OK) playbackCtrl_playRGB565(filename);
     if(playbackCtrl_isFileJPEG(filename) == RET_OK) playbackCtrl_playJPEG(filename);
+    if(playbackCtrl_isFileMotionJPEG(filename) == RET_OK) playbackCtrl_playMotionJPEGStart(filename);
   } else {
     /* reached the end of files, or just error occured */
     LOG("dir end\n");
@@ -216,6 +262,7 @@ static RET playbackCtrl_playNext()
 
 static RET playbackCtrl_isFileRGB565(char *filename)
 {
+  /* check if the extension is rgb */
   for(uint32_t i = 0; (i < 16) && (filename[i] != '\0'); i++) {
     if( (filename[i] == '.') && (filename[i+1] == 'R') && (filename[i+2] == 'G') && (filename[i+3] == 'B') )
       return RET_OK;
@@ -225,6 +272,7 @@ static RET playbackCtrl_isFileRGB565(char *filename)
 
 static RET playbackCtrl_isFileJPEG(char *filename)
 {
+  /* check if the extension is jpg */
   for(uint32_t i = 0; (i < 16) && (filename[i] != '\0'); i++) {
     if( (filename[i] == '.') && (filename[i+1] == 'J') && (filename[i+2] == 'P') )
       return RET_OK;
@@ -232,6 +280,15 @@ static RET playbackCtrl_isFileJPEG(char *filename)
   return RET_NO_DATA;
 }
 
+static RET playbackCtrl_isFileMotionJPEG(char *filename)
+{
+  /* check if the extension is avi */
+  for(uint32_t i = 0; (i < 16) && (filename[i] != '\0'); i++) {
+    if( (filename[i] == '.') && (filename[i+1] == 'A') && (filename[i+2] == 'V') )
+      return RET_OK;
+  }
+  return RET_NO_DATA;
+}
 static RET playbackCtrl_playRGB565(char* filename)
 {
   uint32_t num;
@@ -281,6 +338,7 @@ static RET playbackCtrl_playJPEG(char* filename)
     return RET_ERR;
   }
 
+  display_drawRect(0, 0, PLAY_SIZE_WIDTH, PLAY_SIZE_HEIGHT, 0x0000);
   ret |= playbackCtrl_decodeJpeg(pFil, PLAY_SIZE_WIDTH, PLAY_SIZE_HEIGHT, pLineBuffRGB888);
   ret |= file_loadStop();
   vPortFree(pLineBuffRGB888);
@@ -400,11 +458,103 @@ static RET playbackCtrl_calcJpegOutputSize(struct jpeg_decompress_struct* pCinfo
 
   jpeg_calc_output_dimensions(pCinfo);
 
-  display_drawRect(0, 0, maxWidth, maxHeight, 0x0000);
-
   ret = display_setArea( (maxWidth - pCinfo->output_width) / 2, (maxHeight - pCinfo->output_height) / 2,
                          (maxWidth + pCinfo->output_width) / 2 - 1, (maxHeight + pCinfo->output_height) / 2 - 1);
   return ret;
 }
 
+static RET playbackCtrl_playMotionJPEGStart(char* filename)
+{
+  RET ret;
+  ret = display_drawRect(0, 0, PLAY_SIZE_WIDTH, PLAY_SIZE_HEIGHT, 0x0000);
 
+  if( (sp_movieLineBuffRGB888 != 0) || (sp_movieFil != 0) ){
+    LOG_E("for got stopping movie play\n");
+    return RET_ERR_STATUS;
+  }
+
+  sp_movieLineBuffRGB888 = pvPortMalloc(PLAY_SIZE_WIDTH*3);
+  if(sp_movieLineBuffRGB888 == 0) {
+    LOG_E("\n");
+    return RET_ERR;
+  }
+
+  ret |= file_loadStart(filename);
+  sp_movieFil = file_loadGetCurrentFil();
+  if(sp_movieFil == 0 || ret != RET_OK) {
+    LOG_E("%d\n", ret);
+    file_loadStop();
+    vPortFree(sp_movieLineBuffRGB888);
+    return RET_ERR;
+  }
+
+  s_status = MOVIE_PLAYING;
+
+  return ret;
+}
+
+static RET playbackCtrl_playMotionJPEGStop()
+{
+  RET ret = RET_OK;
+  ret |= file_loadStop();
+  vPortFree(sp_movieLineBuffRGB888);
+
+
+  s_status = ACTIVE;
+  sp_movieLineBuffRGB888 = 0;
+  sp_movieFil = 0;
+
+  if(ret != RET_OK) LOG_E("%d\n", ret);
+  return ret;
+}
+
+static RET playbackCtrl_playMotionJPEGNext()
+{
+  RET ret;
+  ret = playbackCtrl_decodeJpeg(sp_movieFil, PLAY_SIZE_WIDTH, PLAY_SIZE_HEIGHT, sp_movieLineBuffRGB888);
+  if(ret != RET_OK) {
+    LOG_E("%d\n", ret);
+    playbackCtrl_playMotionJPEGStop();
+    return ret;
+  }
+
+  /* move back to the end of last EOI(0xFF 0xD9) because libjpeg might has read too many*/
+  /* the border between JPEG(n-1) and JPEG(n) is 0xFF 0xD9 0xFF 0xD8 0xFF 0xE0 */
+  uint8_t buff[3] = {0};
+  uint32_t num;
+  if(f_tell(sp_movieFil) > INPUT_BUF_SIZE){
+    /* 1. move back by 512 byte anyway */
+    f_lseek(sp_movieFil, f_tell(sp_movieFil) - INPUT_BUF_SIZE);
+    /* 2. then, search for EOI */
+    while(1) {
+      ret = file_load(buff, 2, &num);
+      if( (ret == RET_OK) && (num == 2) ) {
+        if( (buff[0] == 0xFF) && (buff[1] == 0xD9) ){
+          break;
+        } else if( (buff[2] == 0xFF) && (buff[0] == 0xD9) ){
+          /* for odd address */
+          f_lseek(sp_movieFil, f_tell(sp_movieFil) - 1);
+          break;
+        } else {
+          buff[2] = buff[1];
+          continue;
+        }
+      } else {
+        /* end of file */
+        playbackCtrl_playMotionJPEGStop();
+        break;
+      }
+    }
+  } else {
+    /* something is wrong */
+    LOG_E("%d\n", f_tell(sp_movieFil));
+    playbackCtrl_playMotionJPEGStop();
+  }
+
+  if( f_tell(sp_movieFil) == f_size(sp_movieFil) ){
+    /* end of file */
+    playbackCtrl_playMotionJPEGStop();
+  }
+
+  return RET_OK;
+}

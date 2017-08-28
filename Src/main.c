@@ -221,7 +221,7 @@ int main(void)
   CaptureCtrlHandle = osThreadCreate(osThread(CaptureCtrl), NULL);
 
   /* definition and creation of PlaybackCtrl */
-  osThreadDef(PlaybackCtrl, playbackCtrl_task, osPriorityNormal, 0, 512);
+  osThreadDef(PlaybackCtrl, playbackCtrl_task, osPriorityNormal, 0, 256);
   PlaybackCtrlHandle = osThreadCreate(osThread(PlaybackCtrl), NULL);
 
   /* definition and creation of Input */
