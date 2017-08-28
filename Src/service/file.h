@@ -16,6 +16,6 @@ RET file_seekFileNext(char* filename);
 RET file_loadStart(char* filename);
 RET file_loadStop();
 RET file_load(void* destAddress, uint32_t numByte, uint32_t* p_numByte);
-
+FIL* file_loadGetCurrentFil();
 
 #endif /* SERVICE_FILE_H_ */

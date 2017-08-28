@@ -20,7 +20,7 @@ extern TIM_HandleTypeDef htim5;
 
 #define INPUT_TASK_INTERVAL 50
 #define INPUT_MAX_REGISTER_NUM 2
-
+#define INPUT_DIAL0_TICK 2
 
 /*** Internal Static Variables ***/
 MODULE_ID s_registeredId[INPUT_TYPE_NUM][INPUT_MAX_REGISTER_NUM]; // initialized by 0 (dummy module id)
@@ -149,6 +149,7 @@ static void input_checkStatus()
 
   /* check dial 0(rotary encoder) */
   uint32_t cnt = htim5.Instance->CNT;
+  cnt /= INPUT_DIAL0_TICK;
   if(cnt != s_dial0){
     input_notify(INPUT_TYPE_DIAL0, cnt - s_dial0);
   }

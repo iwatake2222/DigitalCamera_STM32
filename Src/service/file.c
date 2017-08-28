@@ -106,5 +106,9 @@ RET file_load(void* destAddress, uint32_t numByte, uint32_t* p_numByte)
   return RET_OK;
 }
 
+FIL* file_loadGetCurrentFil()
+{
+  return &s_fil;
+}
 
 /*** Internal Function Defines ***/

@@ -64,6 +64,12 @@ void display_drawBuffer(void* canvasHandle, uint32_t pixelNum)
   }
 }
 
+inline void display_putPixelRGB565(uint16_t rgb565)
+{
+  *((uint16_t*)lcdIli9341_getDrawAddress()) = rgb565;
+}
+
+
 /*** Internal Function Defines ***/
 static RET display_checkArea(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd)
 {

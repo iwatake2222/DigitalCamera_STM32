@@ -6,6 +6,7 @@
  */
 #include <stdio.h>
 #include "cmsis_os.h"
+#include "jpeglib.h"
 #include "common.h"
 #include "commonHigh.h"
 #include "../hal/display.h"
@@ -17,11 +18,13 @@
 #define PLAY_SIZE_WIDTH  320
 #define PLAY_SIZE_HEIGHT 240
 
+// need to modify jdatasrc.c
+#define INPUT_BUF_SIZE  512  /* choose an efficiently fread'able size */
+
 typedef enum {
   INACTIVE,
   ACTIVE,
 } STATUS;
-
 
 /*** Internal Static Variables ***/
 static STATUS s_status = INACTIVE;
@@ -37,6 +40,10 @@ static RET playbackCtrl_isFileJPEG(char *filename);
 static RET playbackCtrl_isFileRGB565(char *filename);
 static RET playbackCtrl_playRGB565(char* filename);
 static RET playbackCtrl_playJPEG(char* filename);
+static RET playbackCtrl_decodeJpeg(FIL *file, uint32_t maxWidth, uint32_t maxHeight, uint8_t * pLineBuffRGB888);
+static void playbackCtrl_libjpeg_output_message (j_common_ptr cinfo);
+static void playbackCtrl_drawRGB888 (uint8_t* rgb888, uint32_t width);
+static RET playbackCtrl_calcJpegOutputSize(struct jpeg_decompress_struct* pCinfo, uint32_t maxWidth, uint32_t maxHeight);
 
 /*** External Function Defines ***/
 void playbackCtrl_task(void const * argument)
@@ -246,14 +253,158 @@ static RET playbackCtrl_playRGB565(char* filename)
   }
   ret |= file_loadStop();
 
-  if(ret != RET_OK) LOG_E("%d\n", ret);
-
   vPortFree(pLineBuff);
+
+  if(ret != RET_OK) LOG_E("%d\n", ret);
 
   return ret;
 }
 
 static RET playbackCtrl_playJPEG(char* filename)
 {
-  printf("todo\n");
+  RET ret = RET_OK;
+  FIL* pFil;
+  ret |= display_setArea(0, 0, PLAY_SIZE_WIDTH - 1, PLAY_SIZE_HEIGHT - 1);
+
+  uint8_t* pLineBuffRGB888 = pvPortMalloc(PLAY_SIZE_WIDTH*3);
+  if(pLineBuffRGB888 == 0) {
+    LOG_E("\n");
+    return RET_ERR;
+  }
+
+  ret |= file_loadStart(filename);
+  pFil = file_loadGetCurrentFil();
+  if(pFil == 0 || ret != RET_OK) {
+    LOG_E("%d\n", ret);
+    file_loadStop();
+    vPortFree(pLineBuffRGB888);
+    return RET_ERR;
+  }
+
+  ret |= playbackCtrl_decodeJpeg(pFil, PLAY_SIZE_WIDTH, PLAY_SIZE_HEIGHT, pLineBuffRGB888);
+  ret |= file_loadStop();
+  vPortFree(pLineBuffRGB888);
+
+  if(ret != RET_OK) LOG_E("%d\n", ret);
+
+  return ret;
 }
+
+static RET playbackCtrl_decodeJpeg(FIL *file, uint32_t maxWidth, uint32_t maxHeight, uint8_t * pLineBuffRGB888)
+{
+  int ret = 0;;
+  static struct jpeg_decompress_struct cinfo;
+  static struct jpeg_error_mgr jerr;
+  JSAMPROW buffer[2] = {0};
+
+  buffer[0] = pLineBuffRGB888;
+
+  cinfo.err = jpeg_std_error( &jerr );
+  cinfo.err->output_message = playbackCtrl_libjpeg_output_message;  // over-write error output function
+
+  jpeg_create_decompress(&cinfo);
+  jpeg_stdio_src(&cinfo, file);
+  ret = jpeg_read_header(&cinfo, TRUE);
+  if(ret != JPEG_HEADER_OK) {
+    LOG_E("%d\n", ret);
+    jpeg_destroy_decompress(&cinfo);
+    return RET_ERR;
+  }
+
+  ret = playbackCtrl_calcJpegOutputSize(&cinfo, maxWidth, maxHeight);
+  if(ret != RET_OK) {
+    LOG_E("unsupported size %d %d\n", cinfo.image_width, cinfo.image_height);
+    jpeg_destroy_decompress(&cinfo);
+    return RET_ERR;
+  }
+
+  cinfo.dct_method = JDCT_IFAST;
+//  cinfo.dither_mode = JDITHER_ORDERED;
+  cinfo.do_fancy_upsampling = FALSE;
+
+  ret = jpeg_start_decompress(&cinfo);
+  if(ret != 1) {
+    LOG_E("%d\n", ret);
+    jpeg_destroy_decompress(&cinfo);
+    return RET_ERR;
+  }
+
+//  uint32_t start = HAL_GetTick();
+  while( cinfo.output_scanline < cinfo.output_height ) {
+    jpeg_read_scanlines(&cinfo, buffer, 1);
+    playbackCtrl_drawRGB888(pLineBuffRGB888, cinfo.output_width);
+  }
+//  printf("%d\n", HAL_GetTick() - start);
+
+  ret = jpeg_finish_decompress(&cinfo);
+  if(ret != 1) {
+    LOG_E("%d\n", ret);
+  }
+  jpeg_destroy_decompress(&cinfo);
+
+  return RET_OK;
+}
+
+static void playbackCtrl_libjpeg_output_message (j_common_ptr cinfo)
+{
+  char buffer[JMSG_LENGTH_MAX];
+  /* Create the message */
+  (*cinfo->err->format_message) (cinfo, buffer);
+  printf( "%s\n", buffer);
+}
+
+static void playbackCtrl_drawRGB888 (uint8_t* rgb888, uint32_t width)
+{
+  for(uint32_t x = 0; x < width; x++) {
+    uint16_t rgb565;
+    rgb565 = (((*rgb888)<<8)&0xF800) | (((*(rgb888+1))<<3)&0x07E0) | (((*(rgb888+2))>>3)&0x001F);
+    display_putPixelRGB565(rgb565);
+    rgb888 += 3;
+  }
+}
+
+static RET playbackCtrl_calcJpegOutputSize(struct jpeg_decompress_struct* pCinfo, uint32_t maxWidth, uint32_t maxHeight)
+{
+  RET ret;
+  if( (pCinfo->image_width == maxWidth) && (pCinfo->image_height == maxHeight) ) return RET_OK;
+
+  uint32_t scaleX = 8, scaleY = 8;    // real scale = scale / 8
+  if(pCinfo->image_width <= maxWidth) {
+    scaleX = 8;
+  } else if(pCinfo->image_width/2 <= maxWidth) {
+    scaleX = 4;
+  } else if(pCinfo->image_width/4 <= maxWidth) {
+    scaleX = 2;
+  } else if(pCinfo->image_width/8 <= maxWidth) {
+    scaleX = 1;
+  } else {
+    return RET_ERR;
+  }
+  scaleY = scaleX;
+  if (pCinfo->image_height / scaleY > maxHeight){
+    if(pCinfo->image_height <= maxHeight) {
+      scaleY = 8;
+    } else if(pCinfo->image_height/2 <= maxHeight) {
+      scaleY = 4;
+    } else if(pCinfo->image_height/4 <= maxHeight) {
+      scaleY = 2;
+    } else if(pCinfo->image_height/8 <= maxHeight) {
+      scaleY = 1;
+    } else {
+      return RET_ERR;
+    }
+  }
+  scaleX = scaleY;
+  pCinfo->scale_num = scaleX;
+  pCinfo->scale_denom = 8;
+
+  jpeg_calc_output_dimensions(pCinfo);
+
+  display_drawRect(0, 0, maxWidth, maxHeight, 0x0000);
+
+  ret = display_setArea( (maxWidth - pCinfo->output_width) / 2, (maxHeight - pCinfo->output_height) / 2,
+                         (maxWidth + pCinfo->output_width) / 2 - 1, (maxHeight + pCinfo->output_height) / 2 - 1);
+  return ret;
+}
+
+

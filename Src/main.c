@@ -50,6 +50,7 @@
 #include "stm32f4xx_hal.h"
 #include "cmsis_os.h"
 #include "fatfs.h"
+#include "libjpeg.h"
 
 /* USER CODE BEGIN Includes */
 #include "common.h"
@@ -204,7 +205,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of DebugMonitor */
-  osThreadDef(DebugMonitor, debugMonitor_task, osPriorityIdle, 0, 1024);
+  osThreadDef(DebugMonitor, debugMonitor_task, osPriorityIdle, 0, 256);
   DebugMonitorHandle = osThreadCreate(osThread(DebugMonitor), NULL);
 
   /* definition and creation of ModeMgr */
@@ -220,7 +221,7 @@ int main(void)
   CaptureCtrlHandle = osThreadCreate(osThread(CaptureCtrl), NULL);
 
   /* definition and creation of PlaybackCtrl */
-  osThreadDef(PlaybackCtrl, playbackCtrl_task, osPriorityNormal, 0, 128);
+  osThreadDef(PlaybackCtrl, playbackCtrl_task, osPriorityNormal, 0, 512);
   PlaybackCtrlHandle = osThreadCreate(osThread(PlaybackCtrl), NULL);
 
   /* definition and creation of Input */
@@ -629,6 +630,9 @@ __weak void debugMonitor_task(void const * argument)
 {
   /* init code for FATFS */
   MX_FATFS_Init();
+
+  /* init code for LIBJPEG */
+  MX_LIBJPEG_Init();
 
   /* USER CODE BEGIN 5 */
   /* Infinite loop */

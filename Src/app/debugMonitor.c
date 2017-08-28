@@ -29,20 +29,20 @@ typedef struct {
 
 static RET ls(char *argv[], uint32_t argc)
 {
-  FATFS FatFs;  // should allocate heap, but use stack as it is debug code
-  DIR Dir;
+  FATFS *p_FatFs = pvPortMalloc(sizeof(FATFS));
+  DIR *p_Dir = pvPortMalloc(sizeof(DIR));
   FRESULT ret;
+  FILINFO fileinfo;
 
-  ret = f_mount(&FatFs, "", 0);
+  ret = f_mount(p_FatFs, "", 0);
   if(argc > 0) {
-    ret = f_opendir(&Dir, argv[0]);
+    ret = f_opendir(p_Dir, argv[0]);
   } else {
-    ret = f_opendir(&Dir, "/");
+    ret = f_opendir(p_Dir, "/");
   }
 
   while(1){
-    FILINFO fileinfo;
-    ret |= f_readdir(&Dir, &fileinfo);
+    ret |= f_readdir(p_Dir, &fileinfo);
     if (ret != FR_OK || fileinfo.fname[0] == 0) break;
     if (fileinfo.fname[0] == '.') continue;
     if ( (fileinfo.fattrib & AM_SYS) == AM_SYS ) continue;
@@ -52,45 +52,51 @@ static RET ls(char *argv[], uint32_t argc)
     printf("\n");
   }
 
-  ret |= f_closedir(&Dir);
+  ret |= f_closedir(p_Dir);
   ret |= f_mount(0, "", 0);
 
   if(ret != RET_OK) printf("err: %d\n", ret);
+
+  vPortFree(p_Dir);
+  vPortFree(p_FatFs);
 
   return RET_OK;
 }
 
 static RET fatfs(char *argv[], uint32_t argc)
 {
-  FATFS FatFs;  // should allocate heap, but use stack as it is debug code
-  FIL Fil;      // should allocate heap, but use stack as it is debug code
+  FATFS *p_FatFs = pvPortMalloc(sizeof(FATFS));
+  FIL *p_Fil = pvPortMalloc(sizeof(FIL));
   FRESULT ret;
   uint32_t n;
   uint8_t buff[4];
 
-  ret = f_mount(&FatFs, "", 0);
+  ret = f_mount(p_FatFs, "", 0);
   printf("f_mount: %d\n", ret);
 
   ret = f_mkdir("aaa");
   printf("f_mkdir: %d\n", ret);
 
-  ret = f_open(&Fil, "test1.txt", FA_WRITE);
+  ret = f_open(p_Fil, "test1.txt", FA_WRITE | FA_CREATE_ALWAYS);
   printf("f_open: %d\n", ret);
 
-  ret = f_write(&Fil, "abc", 4, &n);
+  ret = f_write(p_Fil, "abc", 4, &n);
   printf("f_write: %d\n", ret);
 
-  ret = f_close(&Fil);
+  ret = f_close(p_Fil);
   printf("f_close: %d\n", ret);
 
-  ret = f_open(&Fil, "test1.txt", FA_READ);
+  ret = f_open(p_Fil, "test1.txt", FA_READ);
   printf("f_open: %d\n", ret);
 
-  ret = f_read(&Fil, buff, 4, &n);
+  ret = f_read(p_Fil, buff, 4, &n);
   printf("f_read: %d, %s\n", ret, buff);
 
   ret = f_mount(0, "", 0);
   printf("f_mount: %d\n", ret);
+
+  vPortFree(p_Fil);
+  vPortFree(p_FatFs);
 
   return RET_OK;
 }
