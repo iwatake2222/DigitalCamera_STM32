@@ -130,19 +130,15 @@ static RET liveviewCtrl_init()
   /*** init display ***/
   display_init();
   uint32_t pixelFormat = display_getPixelFormat();
-  uint32_t size = display_getDisplaySize();
-  if( size == DISPLAY_SIZE_QVGA ){
-    display_setArea(0, 0, 320-1, 240-1);
-  } else {
-    LOG("not supported\n");
-    return RET_ERR;
-  }
+//  uint32_t size = display_getDisplaySize();
+  display_setArea(0, 0, 320-1, 240-1);
 
-  void* canvasHandle = display_getCanvasHandle();
+
+  void* canvasHandle = display_getDisplayHandle();
 
   /*** init camera ***/
   camera_init();
-  if ( (pixelFormat == DISPLAY_PIXEL_FORMAT_RGB565) && (size == DISPLAY_SIZE_QVGA) ){
+  if (pixelFormat == DISPLAY_PIXEL_FORMAT_RGB565 ){
     camera_config(CAMERA_MODE_QVGA_RGB565);
   } else {
     LOG("not supported\n");

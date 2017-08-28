@@ -67,7 +67,7 @@ void lcdIli9341_drawRect(uint16_t xStart, uint16_t yStart, uint16_t width, uint1
   }
 }
 
-uint16_t* lcdIli9341_getDrawAddress()
+inline uint16_t* lcdIli9341_getDrawAddress()
 {
   return (uint16_t*)LCD_DATA_ADDR;
 }

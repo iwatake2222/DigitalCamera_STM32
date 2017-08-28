@@ -13,13 +13,16 @@
 #include "display.h"
 
 /*** Internal Const Values, Macros ***/
+
 /*** Internal Static Variables ***/
+
 /*** Internal Function Declarations ***/
-RET display_checkArea(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd);
+static RET display_checkArea(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd);
+
 /*** External Function Defines ***/
 RET display_init()
 {
-  lcdIli9341_init();
+  return lcdIli9341_init();
 }
 
 RET display_setArea(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd)
@@ -28,7 +31,7 @@ RET display_setArea(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yE
     lcdIli9341_setArea(xStart, yStart, xEnd, yEnd);
     return RET_OK;
   }
-  return RET_ERR;
+  return RET_ERR_PARAM;
 }
 
 RET display_drawRect(uint16_t xStart, uint16_t yStart, uint16_t width, uint16_t height, uint16_t color)
@@ -37,11 +40,11 @@ RET display_drawRect(uint16_t xStart, uint16_t yStart, uint16_t width, uint16_t 
     lcdIli9341_drawRect(xStart, yStart, width, height, color);
     return RET_OK;
   }
-  return RET_ERR;
+  return RET_ERR_PARAM;
 
 }
 
-void* display_getCanvasHandle()
+void* display_getDisplayHandle()
 {
   (void*)lcdIli9341_getDrawAddress();
 }
@@ -51,18 +54,22 @@ uint32_t display_getPixelFormat()
   return DISPLAY_PIXEL_FORMAT_RGB565;
 }
 
-uint32_t display_getDisplaySize()
+
+void display_drawBuffer(void* canvasHandle, uint32_t pixelNum)
 {
-  return DISPLAY_SIZE_QVGA;
+  uint16_t *pBuff = canvasHandle;
+  for(uint32_t x = 0; x < pixelNum; x++) {
+    *((uint16_t*)lcdIli9341_getDrawAddress()) = *pBuff;
+    pBuff++;
+  }
 }
 
-
 /*** Internal Function Defines ***/
-RET display_checkArea(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd)
+static RET display_checkArea(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd)
 {
   if( (xEnd < LCD_ILI9342_WIDTH) && (yEnd < LCD_ILI9342_HEIGHT) ){
     return RET_OK;
   }
-  return RET_ERR;
+  return RET_ERR_PARAM;
 }
 

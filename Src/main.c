@@ -137,7 +137,9 @@ osMessageQId getQueueId(MODULE_ID moduleId)
 
 MSG_STRUCT *allocMemoryPoolMessage()
 {
-  return (MSG_STRUCT*)osPoolAlloc(MpoolMessageHandle);
+  MSG_STRUCT *m = (MSG_STRUCT*)osPoolAlloc(MpoolMessageHandle);
+  if(m == 0) printf("[ERR] Message O/F\n");
+  return m;
 }
 
 void freeMemoryPoolMessage(MSG_STRUCT *p_message)

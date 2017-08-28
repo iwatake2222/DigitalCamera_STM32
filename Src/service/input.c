@@ -15,10 +15,12 @@
 extern TIM_HandleTypeDef htim5;
 
 /*** Internal Const Values, Macros ***/
+#define LOG(str, ...) printf("[INPUT:%d] " str, __LINE__, ##__VA_ARGS__);
+#define LOG_E(str, ...) printf("[INPUT_ERR:%d] " str, __LINE__, ##__VA_ARGS__);
+
 #define INPUT_TASK_INTERVAL 50
 #define INPUT_MAX_REGISTER_NUM 2
 
-#define LOG(str, ...) printf("[INPUT] " str, ##__VA_ARGS__);
 
 /*** Internal Static Variables ***/
 MODULE_ID s_registeredId[INPUT_TYPE_NUM][INPUT_MAX_REGISTER_NUM]; // initialized by 0 (dummy module id)

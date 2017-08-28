@@ -10,7 +10,8 @@
 #include "commonHigh.h"
 
 /*** Internal Const Values, Macros ***/
-#define LOG(str, ...) printf("[MODE] " str, ##__VA_ARGS__);
+#define LOG(str, ...) printf("[MODE:%d] " str, __LINE__, ##__VA_ARGS__);
+#define LOG_E(str, ...) printf("[MODE_ERR:%d] " str, __LINE__, ##__VA_ARGS__);
 
 typedef enum {
   MODE_BOOT = 0,
@@ -55,7 +56,9 @@ static ACTION s_sequenceCapture[MODE_NUM][SEQUENCE_MAX] = {
   {ACT_END, ACT_END, ACT_END, ACT_END, ACT_END}, // on capturing status
 };
 
-static ACTION *sp_currentAction;
+static ACTION   *sp_currentAction;
+static uint32_t s_currentActionIndex;
+
 static MODE s_currentMode = MODE_BOOT;
 
 /*** Internal Function Declarations ***/
@@ -73,7 +76,8 @@ void modeMgr_task(void const * argument)
   modeMgr_registInput();
 
   /* change mode by default (boot -> liveview) */
-  sp_currentAction = &s_sequenceStart[0];
+  s_currentActionIndex = 0;
+  sp_currentAction = &s_sequenceStart[s_currentActionIndex];
   modeMgr_doSequence();
 
   while(1) {
@@ -131,18 +135,20 @@ static RET modeMgr_setNewSequence(MSG_STRUCT* p_recvMsg)
     return RET_DO_NOTHING;
   }
 
-
   switch(p_recvMsg->param.input.type) {
   case INPUT_TYPE_KEY_MODE:
     sp_currentAction = &s_sequenceMode[s_currentMode][0];
+    LOG("sequence start by mode button\n");
     break;
   case INPUT_TYPE_KEY_CAP:
     sp_currentAction = &s_sequenceCapture[s_currentMode][0];
+    LOG("sequence start by cap button\n");
     break;
   default:
     return RET_DO_NOTHING;
   }
 
+  s_currentActionIndex = 0;
 
   return RET_OK;
 }
@@ -152,7 +158,9 @@ static RET modeMgr_doSequence()
   COMMAND command;
   osMessageQId destQueue;
 
-  switch(*sp_currentAction) {
+  LOG("sequence %d start\n", s_currentActionIndex);
+
+  switch(sp_currentAction[s_currentActionIndex]) {
   case ACT_START_LIVEVIEW:
     command = CMD_START;
     destQueue = getQueueId(LIVEVIEW_CTRL);
@@ -176,15 +184,19 @@ static RET modeMgr_doSequence()
   case ACT_ENTER_LIVEVIEW_MODE:
     s_currentMode = MODE_LIVEVIEW;
     sp_currentAction = 0;
-    LOG("new mode: LiveView\n");
+    s_currentActionIndex = 0;
+    LOG("all sequence done, new mode: LiveView\n");
     return RET_OK;  // sequence done
   case ACT_ENTER_PLAYBACK_MODE:
     s_currentMode = MODE_PLAYBACK;
     sp_currentAction = 0;
-    LOG("new mode: Playback\n");
+    s_currentActionIndex = 0;
+    LOG("all sequence done, new mode: Playback\n");
     return RET_OK;  // sequence done
   case ACT_END:
     sp_currentAction = 0;
+    s_currentActionIndex = 0;
+    LOG("all sequence done\n");
     return RET_DO_NOTHING;   // sequence done
   }
 
@@ -205,12 +217,15 @@ static RET modeMgr_doSequenceComp(MSG_STRUCT *p_recvMsg)
 
   if( p_recvMsg->param.val != RET_OK ) {
     // cancel sequence if error
+    LOG_E("sequence stop due to error %d\n", p_recvMsg->param.val);
     sp_currentAction = 0;
+    s_currentActionIndex = 0;
     return RET_ERR;
   }
 
   // keep on sequence
-  sp_currentAction++;
+  LOG("sequence %d done\n", s_currentActionIndex);
+  s_currentActionIndex++;
   modeMgr_doSequence();
   return RET_OK;
 }

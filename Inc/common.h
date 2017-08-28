@@ -8,7 +8,7 @@
 #ifndef COMMON_H_
 #define COMMON_H_
 
-typedef int8_t RET;
+typedef int32_t RET;
 
 #define RET_OK           0
 #define RET_NO_DATA      1
@@ -17,6 +17,8 @@ typedef int8_t RET;
 #define RET_ERR_OF      -2
 #define RET_ERR_TIMEOUT -3
 #define RET_ERR_STATUS  -4
+#define RET_ERR_PARAM   -5
+#define RET_ERR_FILE    -6
 
 
 

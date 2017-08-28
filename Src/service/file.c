@@ -25,32 +25,40 @@ static uint8_t s_isInitDone = 0;
 /*** External Function Defines ***/
 RET file_init()
 {
+  FRESULT ret;
   s_isInitDone = 1;
-  return f_mount(&s_fatFs, "", 0);
+  ret = f_mount(&s_fatFs, "", 0);
+  if(ret != FR_OK) return RET_ERR_FILE;
+  return RET_OK;
 }
 RET file_deinit()
 {
+  FRESULT ret;
   s_isInitDone = 0;
-  return f_mount(0, "", 0);
+  ret = f_mount(0, "", 0);
+  if(ret != FR_OK) return RET_ERR_FILE;
+  return RET_OK;
 }
 
 RET file_seekStart(const char* path)
 {
-  FRESULT ret;
-  if(s_isInitDone == 0)file_init();
+  FRESULT ret = 0;
+  if(s_isInitDone == 0) ret = file_init();
   if(path == 0 || path[0] == 0) {
-    ret = f_opendir(&s_dir, "/");
+    ret |= f_opendir(&s_dir, "/");
   } else {
-    ret = f_opendir(&s_dir, path);
+    ret |= f_opendir(&s_dir, path);
   }
-  return ret;
+  if(ret != FR_OK) return RET_ERR_FILE;
+  return RET_OK;
 }
 
 RET file_seekStop()
 {
   FRESULT ret;
-  ret |= f_closedir(&s_dir);
-  return ret;
+  ret = f_closedir(&s_dir);
+  if(ret != FR_OK) return RET_ERR_FILE;
+  return RET_OK;
 }
 
 RET file_seekFileNext(char* filename)
@@ -58,9 +66,8 @@ RET file_seekFileNext(char* filename)
   FRESULT ret;
   FILINFO fileinfo;
   while(1){
-    FILINFO fileinfo;
     ret = f_readdir(&s_dir, &fileinfo);
-    if (ret != FR_OK) return RET_ERR;
+    if (ret != FR_OK) return RET_ERR_FILE;
     if (fileinfo.fname[0] == 0) return RET_NO_DATA;
     if (fileinfo.fname[0] == '.') continue;
     if ( (fileinfo.fattrib & AM_SYS) == AM_SYS ) continue;
@@ -74,25 +81,29 @@ RET file_seekFileNext(char* filename)
 
 RET file_loadStart(char* filename)
 {
-  FRESULT ret;
-  if(s_isInitDone == 0)file_init();
-  uint32_t actualNum;
-  ret = f_open(&s_fil, filename, FA_READ);
+  FRESULT ret = 0;
+  if(s_isInitDone == 0)ret = file_init();
+  ret |= f_open(&s_fil, filename, FA_READ);
 
-  return ret;
+  if(ret != FR_OK) return RET_ERR_FILE;
+  return RET_OK;
 }
 
 RET file_loadStop()
 {
-  return f_close(&s_fil);
+  FRESULT ret;
+  ret = f_close(&s_fil);
+  if(ret != FR_OK) return RET_ERR_FILE;
+  return RET_OK;
 }
 
+// seems numByte must be <1024
 RET file_load(void* destAddress, uint32_t numByte, uint32_t* p_numByte)
 {
   FRESULT ret;
-  uint32_t actualNum;
-  ret = f_read(&s_fil, destAddress, numByte, p_numByte);
-  return ret;
+  ret = f_read(&s_fil, destAddress, numByte, (UINT*)p_numByte);
+  if(ret != FR_OK) return RET_ERR_FILE;
+  return RET_OK;
 }
 
 
