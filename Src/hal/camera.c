@@ -17,7 +17,9 @@ extern DMA_HandleTypeDef hdma_dcmi;
 extern I2C_HandleTypeDef hi2c2;
 
 /*** Internal Const Values, Macros ***/
+
 /*** Internal Static Variables ***/
+
 /*** Internal Function Declarations ***/
 
 /*** External Function Defines ***/
@@ -57,13 +59,17 @@ RET camera_startCap(uint32_t capMode, void* destHandle)
     printf("cap mode %d is not supported\n", capMode);
     return RET_ERR;
   }
-  return ov7670_startCap(ov7670CapMode, (uint16_t*)destHandle);
+  return ov7670_capStart(ov7670CapMode, (uint16_t*)destHandle);
 }
 
 RET camera_stopCap()
 {
-  return ov7670_stopCap();
+  return ov7670_capStop();
 }
 
+void camera_registerCallback(void (*cbHsync)(uint32_t h), void (*cbVsync)(uint32_t v))
+{
+  ov7670_registerCallback(cbHsync, cbVsync);
+}
 
 /*** Internal Function Defines ***/

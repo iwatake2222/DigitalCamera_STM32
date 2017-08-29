@@ -18,6 +18,6 @@ RET camera_init();
 RET camera_config(uint32_t mode);
 RET camera_startCap(uint32_t capMode, void* destHandle);
 RET camera_stopCap();
-
+void camera_registerCallback(void (*cbHsync)(uint32_t h), void (*cbVsync)(uint32_t v));
 
 #endif /* HAL_CAMERA_H_ */

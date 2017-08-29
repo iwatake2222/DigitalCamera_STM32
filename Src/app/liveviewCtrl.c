@@ -18,6 +18,9 @@ typedef enum {
   ACTIVE,
 } STATUS;
 
+#define LIVEVIEW_WIDTH  320
+#define LIVEVIEW_HEIGHT 240
+
 /*** Internal Static Variables ***/
 static STATUS s_status = INACTIVE;
 
@@ -131,8 +134,7 @@ static RET liveviewCtrl_init()
   display_init();
   uint32_t pixelFormat = display_getPixelFormat();
 //  uint32_t size = display_getDisplaySize();
-  display_setArea(0, 0, 320-1, 240-1);
-
+  display_setArea(0, 0, LIVEVIEW_WIDTH - 1, LIVEVIEW_HEIGHT - 1);
 
   void* canvasHandle = display_getDisplayHandle();
 

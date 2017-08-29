@@ -164,15 +164,16 @@ static RET led(char *argv[], uint32_t argc)
   return RET_OK;
 }
 
+
 static RET cap(char *argv[], uint32_t argc)
 {
   uint32_t start = atoi(argv[0]);
   if(start == 1) {
-    ov7670_startCap(OV7670_CAP_CONTINUOUS, lcdIli9341_getDrawAddress());
+    ov7670_capStart(OV7670_CAP_CONTINUOUS, lcdIli9341_getDrawAddress());
   } else if(start == 2) {
-    ov7670_startCap(OV7670_CAP_SINGLE_FRAME, lcdIli9341_getDrawAddress());
+    ov7670_capStart(OV7670_CAP_SINGLE_FRAME, lcdIli9341_getDrawAddress());
   } else {
-    ov7670_stopCap();
+    ov7670_capStop();
   }
   return RET_OK;
 }

@@ -38,6 +38,7 @@ typedef enum {
 // sequences when startup
 static ACTION s_sequenceStart[SEQUENCE_MAX]= {
   ACT_START_LIVEVIEW, ACT_ENTER_LIVEVIEW_MODE, ACT_END, ACT_END, ACT_END, // on boot status
+//    ACT_DO_CAPTURE, ACT_END, ACT_END, ACT_END, ACT_END, // on boot status
 };
 
 // sequences when mode button pressed

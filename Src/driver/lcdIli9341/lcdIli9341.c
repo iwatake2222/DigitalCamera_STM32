@@ -67,7 +67,7 @@ void lcdIli9341_drawRect(uint16_t xStart, uint16_t yStart, uint16_t width, uint1
   }
 }
 
-inline uint16_t* lcdIli9341_getDrawAddress()
+inline volatile uint16_t* lcdIli9341_getDrawAddress()
 {
   return (uint16_t*)LCD_DATA_ADDR;
 }
@@ -158,8 +158,8 @@ RET lcdIli9341_init()
 //  lcdIli9341_readData();
 //  lcdIli9341_readData();
 
-  lcdIli9341_drawRect(0, 0, LCD_ILI9342_WIDTH, LCD_ILI9342_HEIGHT, 0xffff);
-//  lcdIli9341_drawRect(0, 0, LCD_ILI9342_WIDTH, LCD_ILI9342_HEIGHT, 0x0000);
+//  lcdIli9341_drawRect(0, 0, LCD_ILI9342_WIDTH, LCD_ILI9342_HEIGHT, 0xffff);
+  lcdIli9341_drawRect(0, 0, LCD_ILI9342_WIDTH, LCD_ILI9342_HEIGHT, 0x0000);
   lcdIli9341_setArea(0, 0, LCD_ILI9342_WIDTH - 1, LCD_ILI9342_HEIGHT - 1);
 
   return RET_OK;
