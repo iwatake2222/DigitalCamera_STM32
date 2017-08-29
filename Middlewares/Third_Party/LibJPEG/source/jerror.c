@@ -109,7 +109,7 @@ output_message (j_common_ptr cinfo)
 #else
   /* Send it to stderr, adding a newline */
 //  fprintf(stderr, "%s\n", buffer);
-//  printf( "%s\n", buffer);
+  printf( "%s\n", buffer);
 #endif
 }
 

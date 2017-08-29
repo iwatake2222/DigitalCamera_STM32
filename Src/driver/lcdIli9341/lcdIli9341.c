@@ -38,6 +38,23 @@ static void lcdIli9341_writeCmd(uint8_t cmd);
 static void lcdIli9341_readData();
 
 /*** External Function Defines ***/
+void lcdIli9341_setAreaRead(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd)
+{
+  lcdIli9341_writeCmd(0x2a);
+  lcdIli9341_writeData(xStart >> 8);
+  lcdIli9341_writeData(xStart & 0xff);
+  lcdIli9341_writeData(xEnd >> 8);
+  lcdIli9341_writeData(xEnd & 0xff);
+
+  lcdIli9341_writeCmd(0x2b);
+  lcdIli9341_writeData(yStart >> 8);
+  lcdIli9341_writeData(yStart & 0xff);
+  lcdIli9341_writeData(yEnd >> 8);
+  lcdIli9341_writeData(yEnd & 0xff);
+
+  lcdIli9341_writeCmd(0x2e);
+}
+
 void lcdIli9341_setArea(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd)
 {
   lcdIli9341_writeCmd(0x2a);
@@ -158,8 +175,8 @@ RET lcdIli9341_init()
 //  lcdIli9341_readData();
 //  lcdIli9341_readData();
 
-  lcdIli9341_drawRect(0, 0, LCD_ILI9342_WIDTH, LCD_ILI9342_HEIGHT, 0xffff);
-//  lcdIli9341_drawRect(0, 0, LCD_ILI9342_WIDTH, LCD_ILI9342_HEIGHT, 0x0000);
+//  lcdIli9341_drawRect(0, 0, LCD_ILI9342_WIDTH, LCD_ILI9342_HEIGHT, 0xffff);
+  lcdIli9341_drawRect(0, 0, LCD_ILI9342_WIDTH, LCD_ILI9342_HEIGHT, 0x0000);
   lcdIli9341_setArea(0, 0, LCD_ILI9342_WIDTH - 1, LCD_ILI9342_HEIGHT - 1);
 
   return RET_OK;
@@ -188,6 +205,18 @@ inline static void lcdIli9341_writeData(uint8_t data)
 }
 
 inline static void lcdIli9341_readData()
+{
+#ifdef BIT_WIDTH_16
+  uint16_t data = LCD_DATA;
+  printf("%04X\n", data);
+#else
+  uint8_t data = LCD_DATA;
+  printf("%02X\n", data);
+#endif
+
+}
+
+void lcdIli9341_readDataEx()
 {
 #ifdef BIT_WIDTH_16
   uint16_t data = LCD_DATA;

@@ -117,13 +117,6 @@ static RET modeMgr_registInput()
   p_sendMsg->param.input.type = INPUT_TYPE_KEY_MODE;
   osMessagePut(getQueueId(INPUT), (uint32_t)p_sendMsg, osWaitForever);
 
-  /* register to be notified when capture key pressed */
-  p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
-  p_sendMsg->command = CMD_REGISTER;
-  p_sendMsg->sender  = MODE_MGR;
-  p_sendMsg->param.input.type = INPUT_TYPE_KEY_CAP;
-  osMessagePut(getQueueId(INPUT), (uint32_t)p_sendMsg, osWaitForever);
-
   return RET_OK;
 }
 
