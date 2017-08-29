@@ -205,7 +205,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of DebugMonitor */
-  osThreadDef(DebugMonitor, debugMonitor_task, osPriorityIdle, 0, 256);
+  osThreadDef(DebugMonitor, debugMonitor_task, osPriorityIdle, 0, 512);
   DebugMonitorHandle = osThreadCreate(osThread(DebugMonitor), NULL);
 
   /* definition and creation of ModeMgr */

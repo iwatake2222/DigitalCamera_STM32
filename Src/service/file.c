@@ -27,6 +27,7 @@ RET file_init()
 {
   FRESULT ret;
   s_isInitDone = 1;
+  f_mount(0, "", 0);
   ret = f_mount(&s_fatFs, "", 0);
   if(ret != FR_OK) return RET_ERR_FILE;
   return RET_OK;

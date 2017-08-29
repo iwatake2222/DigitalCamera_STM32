@@ -47,10 +47,10 @@ static RET playbackCtrl_isFileRGB565(char *filename);
 static RET playbackCtrl_playRGB565(char* filename);
 static RET playbackCtrl_playJPEG(char* filename);
 static RET playbackCtrl_isFileMotionJPEG(char *filename);
-static RET playbackCtrl_decodeJpeg(FIL *file, uint32_t maxWidth, uint32_t maxHeight, uint8_t * pLineBuffRGB888);
+static RET playbackCtrl_decodeJpeg(FIL *p_file, uint32_t maxWidth, uint32_t maxHeight, uint8_t * p_lineBuffRGB888);
 static void playbackCtrl_libjpeg_output_message (j_common_ptr cinfo);
 static void playbackCtrl_drawRGB888 (uint8_t* rgb888, uint32_t width);
-static RET playbackCtrl_calcJpegOutputSize(struct jpeg_decompress_struct* pCinfo, uint32_t maxWidth, uint32_t maxHeight);
+static RET playbackCtrl_calcJpegOutputSize(struct jpeg_decompress_struct* p_cinfo, uint32_t maxWidth, uint32_t maxHeight);
 static RET playbackCtrl_playMotionJPEGStart(char* filename);
 static RET playbackCtrl_playMotionJPEGStop();
 static RET playbackCtrl_playMotionJPEGNext();
@@ -320,86 +320,88 @@ static RET playbackCtrl_playRGB565(char* filename)
 static RET playbackCtrl_playJPEG(char* filename)
 {
   RET ret = RET_OK;
-  FIL* pFil;
+  FIL* p_fil;
   ret |= display_setArea(0, 0, PLAY_SIZE_WIDTH - 1, PLAY_SIZE_HEIGHT - 1);
 
-  uint8_t* pLineBuffRGB888 = pvPortMalloc(PLAY_SIZE_WIDTH*3);
-  if(pLineBuffRGB888 == 0) {
+  uint8_t* p_lineBuffRGB888 = pvPortMalloc(PLAY_SIZE_WIDTH*3);
+  if(p_lineBuffRGB888 == 0) {
     LOG_E("\n");
     return RET_ERR;
   }
 
   ret |= file_loadStart(filename);
-  pFil = file_loadGetCurrentFil();
-  if(pFil == 0 || ret != RET_OK) {
+  p_fil = file_loadGetCurrentFil();
+  if(p_fil == 0 || ret != RET_OK) {
     LOG_E("%d\n", ret);
     file_loadStop();
-    vPortFree(pLineBuffRGB888);
+    vPortFree(p_lineBuffRGB888);
     return RET_ERR;
   }
 
   display_drawRect(0, 0, PLAY_SIZE_WIDTH, PLAY_SIZE_HEIGHT, 0x0000);
-  ret |= playbackCtrl_decodeJpeg(pFil, PLAY_SIZE_WIDTH, PLAY_SIZE_HEIGHT, pLineBuffRGB888);
+  ret |= playbackCtrl_decodeJpeg(p_fil, PLAY_SIZE_WIDTH, PLAY_SIZE_HEIGHT, p_lineBuffRGB888);
   ret |= file_loadStop();
-  vPortFree(pLineBuffRGB888);
+  vPortFree(p_lineBuffRGB888);
 
   if(ret != RET_OK) LOG_E("%d\n", ret);
 
   return ret;
 }
 
-static RET playbackCtrl_decodeJpeg(FIL *file, uint32_t maxWidth, uint32_t maxHeight, uint8_t * pLineBuffRGB888)
+static RET playbackCtrl_decodeJpeg(FIL *p_file, uint32_t maxWidth, uint32_t maxHeight, uint8_t * p_lineBuffRGB888)
 {
   int ret = 0;;
-  static struct jpeg_decompress_struct cinfo;
-  static struct jpeg_error_mgr jerr;
+  struct jpeg_decompress_struct* p_cinfo = pvPortMalloc(sizeof(struct jpeg_decompress_struct));
+  struct jpeg_error_mgr* p_jerr = pvPortMalloc(sizeof(struct jpeg_error_mgr));
   JSAMPROW buffer[2] = {0};
 
-  buffer[0] = pLineBuffRGB888;
+  buffer[0] = p_lineBuffRGB888;
 
-  cinfo.err = jpeg_std_error( &jerr );
-  cinfo.err->output_message = playbackCtrl_libjpeg_output_message;  // over-write error output function
+  p_cinfo->err = jpeg_std_error(p_jerr);
+  p_cinfo->err->output_message = playbackCtrl_libjpeg_output_message;  // over-write error output function
 
-  jpeg_create_decompress(&cinfo);
-  jpeg_stdio_src(&cinfo, file);
-  ret = jpeg_read_header(&cinfo, TRUE);
+  jpeg_create_decompress(p_cinfo);
+  jpeg_stdio_src(p_cinfo, p_file);
+  ret = jpeg_read_header(p_cinfo, TRUE);
   if(ret != JPEG_HEADER_OK) {
     LOG_E("%d\n", ret);
-    jpeg_destroy_decompress(&cinfo);
+    jpeg_destroy_decompress(p_cinfo);
     return RET_ERR;
   }
 
-  ret = playbackCtrl_calcJpegOutputSize(&cinfo, maxWidth, maxHeight);
+  ret = playbackCtrl_calcJpegOutputSize(p_cinfo, maxWidth, maxHeight);
   if(ret != RET_OK) {
-    LOG_E("unsupported size %d %d\n", cinfo.image_width, cinfo.image_height);
-    jpeg_destroy_decompress(&cinfo);
+    LOG_E("unsupported size %d %d\n", p_cinfo->image_width, p_cinfo->image_height);
+    jpeg_destroy_decompress(p_cinfo);
     return RET_ERR;
   }
 
-  cinfo.dct_method = JDCT_IFAST;
-//  cinfo.dither_mode = JDITHER_ORDERED;
-  cinfo.do_fancy_upsampling = FALSE;
+  p_cinfo->dct_method = JDCT_IFAST;
+//  p_cinfo->dither_mode = JDITHER_ORDERED;
+  p_cinfo->do_fancy_upsampling = FALSE;
 
-  ret = jpeg_start_decompress(&cinfo);
+  ret = jpeg_start_decompress(p_cinfo);
   if(ret != 1) {
     LOG_E("%d\n", ret);
-    jpeg_destroy_decompress(&cinfo);
+    jpeg_destroy_decompress(p_cinfo);
     return RET_ERR;
   }
 
 //  uint32_t start = HAL_GetTick();
-  while( cinfo.output_scanline < cinfo.output_height ) {
-    jpeg_read_scanlines(&cinfo, buffer, 1);
-    playbackCtrl_drawRGB888(pLineBuffRGB888, cinfo.output_width);
+  while( p_cinfo->output_scanline < p_cinfo->output_height ) {
+    jpeg_read_scanlines(p_cinfo, buffer, 1);
+    playbackCtrl_drawRGB888(p_lineBuffRGB888, p_cinfo->output_width);
   }
 //  printf("%d\n", HAL_GetTick() - start);
 
-  ret = jpeg_finish_decompress(&cinfo);
+  ret = jpeg_finish_decompress(p_cinfo);
   if(ret != 1) {
     LOG_E("%d\n", ret);
   }
-  jpeg_destroy_decompress(&cinfo);
+  jpeg_destroy_decompress(p_cinfo);
 
+  vPortFree(p_cinfo);
+  vPortFree(p_jerr);
   return RET_OK;
 }
 
@@ -421,45 +423,45 @@ static void playbackCtrl_drawRGB888 (uint8_t* rgb888, uint32_t width)
   }
 }
 
-static RET playbackCtrl_calcJpegOutputSize(struct jpeg_decompress_struct* pCinfo, uint32_t maxWidth, uint32_t maxHeight)
+static RET playbackCtrl_calcJpegOutputSize(struct jpeg_decompress_struct* p_cinfo, uint32_t maxWidth, uint32_t maxHeight)
 {
   RET ret;
-  if( (pCinfo->image_width == maxWidth) && (pCinfo->image_height == maxHeight) ) return RET_OK;
+  if( (p_cinfo->image_width == maxWidth) && (p_cinfo->image_height == maxHeight) ) return RET_OK;
 
   uint32_t scaleX = 8, scaleY = 8;    // real scale = scale / 8
-  if(pCinfo->image_width <= maxWidth) {
+  if(p_cinfo->image_width <= maxWidth) {
     scaleX = 8;
-  } else if(pCinfo->image_width/2 <= maxWidth) {
+  } else if(p_cinfo->image_width/2 <= maxWidth) {
     scaleX = 4;
-  } else if(pCinfo->image_width/4 <= maxWidth) {
+  } else if(p_cinfo->image_width/4 <= maxWidth) {
     scaleX = 2;
-  } else if(pCinfo->image_width/8 <= maxWidth) {
+  } else if(p_cinfo->image_width/8 <= maxWidth) {
     scaleX = 1;
   } else {
     return RET_ERR;
   }
   scaleY = scaleX;
-  if (pCinfo->image_height / scaleY > maxHeight){
-    if(pCinfo->image_height <= maxHeight) {
+  if (p_cinfo->image_height / scaleY > maxHeight){
+    if(p_cinfo->image_height <= maxHeight) {
       scaleY = 8;
-    } else if(pCinfo->image_height/2 <= maxHeight) {
+    } else if(p_cinfo->image_height/2 <= maxHeight) {
       scaleY = 4;
-    } else if(pCinfo->image_height/4 <= maxHeight) {
+    } else if(p_cinfo->image_height/4 <= maxHeight) {
       scaleY = 2;
-    } else if(pCinfo->image_height/8 <= maxHeight) {
+    } else if(p_cinfo->image_height/8 <= maxHeight) {
       scaleY = 1;
     } else {
       return RET_ERR;
     }
   }
   scaleX = scaleY;
-  pCinfo->scale_num = scaleX;
-  pCinfo->scale_denom = 8;
+  p_cinfo->scale_num = scaleX;
+  p_cinfo->scale_denom = 8;
 
-  jpeg_calc_output_dimensions(pCinfo);
+  jpeg_calc_output_dimensions(p_cinfo);
 
-  ret = display_setArea( (maxWidth - pCinfo->output_width) / 2, (maxHeight - pCinfo->output_height) / 2,
-                         (maxWidth + pCinfo->output_width) / 2 - 1, (maxHeight + pCinfo->output_height) / 2 - 1);
+  ret = display_setArea( (maxWidth - p_cinfo->output_width) / 2, (maxHeight - p_cinfo->output_height) / 2,
+                         (maxWidth + p_cinfo->output_width) / 2 - 1, (maxHeight + p_cinfo->output_height) / 2 - 1);
   return ret;
 }
 
