@@ -19,7 +19,6 @@
 #define LOG(str, ...) printf("[LV_CTRL:%d] " str, __LINE__, ##__VA_ARGS__);
 #define LOG_E(str, ...) printf("[LV_CTRL_ERR:%d] " str, __LINE__, ##__VA_ARGS__);
 
-
 // need to modify jdatasrc.c
 #define INPUT_BUF_SIZE  512  /* choose an efficiently fread'able size */
 
@@ -100,7 +99,9 @@ static void liveviewCtrl_sendComp(MSG_STRUCT *p_recvMmsg, RET ret)
 static void liveviewCtrl_processMsg(MSG_STRUCT *p_msg)
 {
   RET ret;
+
   switch(s_status) {
+
   case INACTIVE:
     switch(p_msg->command){
     case CMD_START:
@@ -121,6 +122,7 @@ static void liveviewCtrl_processMsg(MSG_STRUCT *p_msg)
       break;
     }
     break;
+
   case ACTIVE:
     switch(p_msg->command){
     case CMD_START:
@@ -153,10 +155,12 @@ static void liveviewCtrl_processMsg(MSG_STRUCT *p_msg)
       break;
     }
     break;
+
   case SINGLE_CAPTURING:
     // there shouldn't be any message during this status
     LOG_E("status error\n");
     break;
+
   case MOVIE_RECORDING:
     switch(p_msg->command){
     case CMD_START:
@@ -175,6 +179,7 @@ static void liveviewCtrl_processMsg(MSG_STRUCT *p_msg)
       break;
     }
     break;
+
   default:
     LOG_E("status error\n");
     break;
@@ -245,6 +250,8 @@ static RET liveviewCtrl_init()
   /*** start liveview ***/
   ret |= liveviewCtrl_startLiveView();
 
+  if(ret != RET_OK) LOG_E("%08X\n", ret);
+
   return ret;
 }
 
@@ -278,6 +285,8 @@ static RET liveviewCtrl_exit()
 
   /*** stop camera ***/
   ret |= liveviewCtrl_stopLiveView();
+
+  if(ret != RET_OK) LOG_E("%08X\n", ret);
 
   return ret;
 }
@@ -316,6 +325,11 @@ static RET liveviewCtrl_capture()
   LOG("encode time = %d\n", HAL_GetTick() - start);
   LOG("Single Capture Finish\n");
 
+#if BLACK_CURTAIN_TIME > 0
+  display_drawRect(0, 0, IMAGE_SIZE_WIDTH, IMAGE_SIZE_HEIGHT, DISPLAY_COLOR_BLACK);  // like shutter
+  HAL_Delay(BLACK_CURTAIN_TIME);
+#endif
+
   /*** restart liveview ***/
   ret |= liveviewCtrl_startLiveView();
 
@@ -352,13 +366,20 @@ static RET liveviewCtrl_movieRecordFinish()
   RET ret = RET_OK;
 
   camera_registerCallback(0, 0);
-
   ret |= liveviewCtrl_writeFileFinish();
+
+#if BLACK_CURTAIN_TIME > 0
+  camera_stopCap();   // the last frame which was not recorded might running and pixel data might be being transfered to Display
+  display_drawRect(0, 0, IMAGE_SIZE_WIDTH, IMAGE_SIZE_HEIGHT, DISPLAY_COLOR_BLACK);  // like shutter
+  HAL_Delay(BLACK_CURTAIN_TIME);
+#endif
+
   ret |= liveviewCtrl_startLiveView();
   if(ret != RET_OK) {
     LOG_E("Movie Encode End by error: %08X\n", ret);
   }
   LOG("Movie Record Finish\n");
+
   return ret;
 }
 
@@ -407,7 +428,7 @@ static RET liveviewCtrl_encodeJpegFrame()
     vPortFree(sp_cinfo);
     vPortFree(sp_jerr);
     vPortFree(sp_lineBuffRGB888);
-    return RET_ERR;
+    return RET_ERR_MEMORY;
   }
 
   /*** prepare libjpeg ***/
@@ -455,7 +476,7 @@ static RET liveviewCtrl_writeFileStart(char* filename)
   sp_fatFs = pvPortMalloc(sizeof(FATFS));
   sp_fil   = pvPortMalloc(sizeof(FIL));
   if( (sp_fatFs == 0) || (sp_fil == 0) ) {
-    return RET_ERR;
+    return RET_ERR_MEMORY;
   }
 
   ret |= f_mount(sp_fatFs, "", 0);
@@ -484,7 +505,7 @@ static RET liveviewCtrl_generateFilename(char* filename, uint8_t numPos)
   if( (p_fatFs == 0) || (p_fil == 0) ) {
     vPortFree(p_fil);
     vPortFree(p_fatFs);
-    return RET_ERR;
+    return RET_ERR_MEMORY;
   }
 
   f_mount(p_fatFs, "", 0);
