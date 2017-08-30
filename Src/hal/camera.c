@@ -46,6 +46,7 @@ RET camera_config(uint32_t mode)
 RET camera_startCap(uint32_t capMode, void* destHandle)
 {
   uint32_t ov7670CapMode;
+
   switch (capMode){
   case CAMERA_CAP_CONTINUOUS:
     ov7670CapMode = OV7670_CAP_CONTINUOUS;
@@ -57,7 +58,7 @@ RET camera_startCap(uint32_t capMode, void* destHandle)
     printf("cap mode %d is not supported\n", capMode);
     return RET_ERR;
   }
-  return ov7670_startCap(ov7670CapMode, (uint16_t*)destHandle);
+  return ov7670_startCap(ov7670CapMode, (uint32_t)destHandle);
 }
 
 RET camera_stopCap()
@@ -65,5 +66,9 @@ RET camera_stopCap()
   return ov7670_stopCap();
 }
 
+void camera_registerCallback(void (*cbHsync)(uint32_t h), void (*cbVsync)(uint32_t v))
+{
+  ov7670_registerCallback(cbHsync, cbVsync);
+}
 
 /*** Internal Function Defines ***/

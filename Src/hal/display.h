@@ -16,11 +16,12 @@
 
 RET display_init();
 RET display_setArea(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd);
+RET display_setAreaRead(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd);
 RET display_drawRect(uint16_t xStart, uint16_t yStart, uint16_t width, uint16_t height, uint16_t color);
 void* display_getDisplayHandle();
 uint32_t display_getPixelFormat();
 void display_putPixelRGB565(uint16_t rgb565);
 void display_drawBuffer(void* canvasHandle, uint32_t pixelNum);
-
+void display_readLineRGB888(uint8_t *p_buff, uint32_t width);
 
 #endif /* HAL_DISPLAY_H_ */

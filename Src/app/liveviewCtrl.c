@@ -13,9 +13,6 @@
 #include "ff.h"
 #include "jpeglib.h"
 
-// todo delete
-#include "stm32f4xx_hal.h"
-
 
 /*** Internal Const Values, Macros ***/
 #define LOG(str, ...) printf("[LV_CTRL:%d] " str, __LINE__, ##__VA_ARGS__);
@@ -23,9 +20,9 @@
 #define CAP_SIZE_WIDTH  320
 #define CAP_SIZE_HEIGHT 240
 #define CAP_MOTION_JPEG_FPS_MSEC  100   //(10fps)
-#define CAP_NAME_JPEG      "IMG000.JPG"
-#define CAP_NAME_MOVIE     "IMG000.AVI"
-#define CAP_NAME_INDEX_POS  3       // index number start at 3 (e.g. filename = IMG + 000)
+#define FILENAME_JPEG      "IMG000.JPG"
+#define FILENAME_MOVIE     "IMG000.AVI"
+#define FILENAME_NUM_POS  3       // index number start at 3 (e.g. filename = IMG + 000)
 
 // need to modify jdatasrc.c
 #define INPUT_BUF_SIZE  512  /* choose an efficiently fread'able size */
@@ -33,8 +30,8 @@
 typedef enum {
   INACTIVE,
   ACTIVE,
-  SINGLE_ENCODING,
-  MOVIE_ENCODING,
+  SINGLE_CAPTURING,
+  MOVIE_RECORDING,
 } STATUS;
 
 /*** Internal Static Variables ***/
@@ -44,12 +41,15 @@ static uint8_t s_requestStopMovie = 0;  // movie record will stop at next frame
 
 /* foe encode */
 static uint8_t *sp_lineBuffRGB888;
-static FATFS *sp_fatFs;
-static FIL    *sp_fil;
+static FATFS   *sp_fatFs;
+static FIL     *sp_fil;
 static struct jpeg_compress_struct *sp_cinfo;
 static struct jpeg_error_mgr       *sp_jerr;
 static JSAMPROW s_jsamprow[2] = {0};
 
+/* for movie recording */
+static uint8_t s_nextFrameReady = 0;
+static uint32_t s_lastFrameStartTimeMSec = 0;
 
 /*** Internal Function Declarations ***/
 static void liveviewCtrl_sendComp(MSG_STRUCT *p_recvMmsg, RET ret);
@@ -59,20 +59,17 @@ static RET liveviewCtrl_init();
 static RET liveviewCtrl_exit();
 static RET liveviewCtrl_startLiveView();
 static RET liveviewCtrl_stopLiveView();
+static RET liveviewCtrl_capture();
+static RET liveviewCtrl_movieRecordStart(); // call this when start movie recording
+static RET liveviewCtrl_movieRecordFinish();  // call this when stop movie recording
+static RET liveviewCtrl_movieRecordFrame(); // call this every frame during movie recording
 
-static RET liveviewCtrl_singleRecord();
-
-static RET liveviewCtrl_movieRecordStart();
-static RET liveviewCtrl_movieRecordFinish();
-static RET liveviewCtrl_movieRecordFrame();
-
-
+static RET liveviewCtrl_encodeJpegFrame();  // call this between liveviewCtrl_writeFileStart and liveviewCtrl_writeFilefinish
 static RET liveviewCtrl_writeFileStart(char* filename);
 static RET liveviewCtrl_writeFileFinish();
-static RET liveviewCtrl_encodeJpegStart();
-static RET liveviewCtrl_encodeJpegFinish();
+static RET liveviewCtrl_generateFilename(char* filename, uint8_t numPos);
 
-static RET liveviewCtrl_generateFilename(char* filename, uint8_t posIndex);
+static void liveviewCtrl_cbVsync(uint32_t frame);
 
 /*** External Function Defines ***/
 void liveviewCtrl_task(void const * argument)
@@ -82,7 +79,7 @@ void liveviewCtrl_task(void const * argument)
 
   while(1) {
     osEvent event;
-    event = osMessageGet(myQueueId, 200);
+    event = osMessageGet(myQueueId, 10);
     if (event.status == osEventMessage) {
       MSG_STRUCT* p_recvMsg = event.value.p;
 //      LOG("msg received: %08X %08X %08X\n", p_recvMsg->command, p_recvMsg->sender, p_recvMsg->param.val);
@@ -109,10 +106,6 @@ static void liveviewCtrl_processMsg(MSG_STRUCT *p_msg)
   RET ret;
   switch(s_status) {
   case INACTIVE:
-    if (IS_COMMAND_COMP(p_msg->command)) {
-      // do nothing when comp (may be comp from input)
-      return;
-    }
     switch(p_msg->command){
     case CMD_START:
       s_status = ACTIVE;
@@ -123,16 +116,16 @@ static void liveviewCtrl_processMsg(MSG_STRUCT *p_msg)
       LOG_E("status error\n");
       liveviewCtrl_sendComp(p_msg, RET_ERR_STATUS);
       break;
+    case COMMAND_COMP(CMD_REGISTER):
+    case COMMAND_COMP(CMD_UNREGISTER):
+      // do nothing
+      break;
     default:
       LOG_E("status error\n");
       break;
     }
     break;
   case ACTIVE:
-    if (IS_COMMAND_COMP(p_msg->command)) {
-      // do nothing when comp (may be comp from input)
-      return;
-    }
     switch(p_msg->command){
     case CMD_START:
       LOG_E("status error\n");
@@ -146,23 +139,29 @@ static void liveviewCtrl_processMsg(MSG_STRUCT *p_msg)
     case CMD_NOTIFY_INPUT:
       LOG("input: %d %d\n", p_msg->param.input.type, p_msg->param.input.status);
       if(p_msg->param.input.type == INPUT_TYPE_KEY_CAP) {
-        s_status = SINGLE_ENCODING;
-        liveviewCtrl_singleRecord();
+        s_status = SINGLE_CAPTURING;
+        liveviewCtrl_capture();
         s_status = ACTIVE;
       } else if(p_msg->param.input.type == INPUT_TYPE_KEY_OTHER0) {
-        s_status = MOVIE_ENCODING;
-        liveviewCtrl_movieRecordStart();
+        if(liveviewCtrl_movieRecordStart() == RET_OK){
+          s_status = MOVIE_RECORDING;
+        }
       }
+      break;
+    case COMMAND_COMP(CMD_REGISTER):
+    case COMMAND_COMP(CMD_UNREGISTER):
+      // do nothing
       break;
     default:
       LOG_E("status error\n");
       break;
     }
     break;
-  case SINGLE_ENCODING:
+  case SINGLE_CAPTURING:
     // there shouldn't be any message during this status
+    LOG_E("status error\n");
     break;
-  case MOVIE_ENCODING:
+  case MOVIE_RECORDING:
     switch(p_msg->command){
     case CMD_START:
     case CMD_STOP:
@@ -180,20 +179,28 @@ static void liveviewCtrl_processMsg(MSG_STRUCT *p_msg)
       break;
     }
     break;
+  default:
+    LOG_E("status error\n");
+    break;
   }
 }
 
 static void liveviewCtrl_processFrame()
 {
-  if( s_status == MOVIE_ENCODING ){
+  if( s_status == MOVIE_RECORDING ){
     if(s_requestStopMovie) {
-      liveviewCtrl_movieRecordFinish();
+      if(liveviewCtrl_movieRecordFinish() == RET_OK){
+        s_requestStopMovie = 0;
+        s_status = ACTIVE;
+      }
     } else {
-      liveviewCtrl_movieRecordFrame();
+        if(liveviewCtrl_movieRecordFrame() != RET_OK){
+          LOG_E("error during movie rec\n");
+          s_status = ACTIVE;
+        }
     }
   }
 }
-
 
 static RET liveviewCtrl_init()
 {
@@ -280,6 +287,7 @@ static RET liveviewCtrl_startLiveView()
 {
   RET ret = RET_OK;
   void* displayHandle = display_getDisplayHandle();
+  camera_stopCap();
   display_setArea(0, 0, CAP_SIZE_WIDTH - 1, CAP_SIZE_HEIGHT - 1);
   ret |= camera_startCap(CAMERA_CAP_CONTINUOUS, displayHandle);
   return ret;
@@ -292,63 +300,154 @@ static RET liveviewCtrl_stopLiveView()
   return ret;
 }
 
-static RET liveviewCtrl_singleRecord()
+static RET liveviewCtrl_capture()
 {
   LOG("Single Encode Start\n");
   RET ret = RET_OK;
-  uint16_t dummy;
-  char filename[14] = CAP_NAME_JPEG;
-
-  ret |= liveviewCtrl_stopLiveView();
-
-//  lcdIli9341_setAreaRead(0, 4, 320-1, 240-1);
-//  dummy = *((volatile uint16_t* )(lcdIli9341_getDrawAddress()));
-//  extern DMA_HandleTypeDef hdma_memtomem_dma2_stream0;
-//  HAL_DMA_Start(&hdma_memtomem_dma2_stream0, lcdIli9341_getDrawAddress(), sp_lineBuffRGB888, 100);
-//  HAL_DMA_PollForTransfer(&hdma_memtomem_dma2_stream0, HAL_DMA_FULL_TRANSFER, 100);
-
+  char filename[14] = FILENAME_JPEG;
   uint32_t start = HAL_GetTick();
 
-  ret |= liveviewCtrl_generateFilename(filename, CAP_NAME_INDEX_POS);
+  ret |= liveviewCtrl_stopLiveView();
+  ret |= liveviewCtrl_generateFilename(filename, FILENAME_NUM_POS);
   LOG("create %s\n", filename);
   ret |= liveviewCtrl_writeFileStart(filename);
-  ret |= liveviewCtrl_encodeJpegStart();
-  if(ret != RET_OK) {
-    ret |= liveviewCtrl_encodeJpegFinish();
-    ret |= liveviewCtrl_writeFileFinish();
-    LOG_E("Single Encode End by error: %08X\n", ret);
-    return ret;
-  }
-  lcdIli9341_setAreaRead(0, 0, CAP_SIZE_WIDTH - 1, CAP_SIZE_HEIGHT - 1);
-  dummy = *((volatile uint16_t* )(lcdIli9341_getDrawAddress()));
-  for(uint32_t y = 0; y < 240; y++) {
-    for(uint32_t x = 0; x < 320/2; x++){
-      uint16_t data0 = *((volatile uint16_t* )(lcdIli9341_getDrawAddress()));
-      uint16_t data1 = *((volatile uint16_t* )(lcdIli9341_getDrawAddress()));
-      uint16_t data2 = *((volatile uint16_t* )(lcdIli9341_getDrawAddress()));
-      sp_lineBuffRGB888[x*6 + 0] = data0 >> 8;
-      sp_lineBuffRGB888[x*6 + 1] = data0 & 0x00FF;
-      sp_lineBuffRGB888[x*6 + 2] = data1 >> 8;
-      sp_lineBuffRGB888[x*6 + 3] = data1 & 0x00FF;
-      sp_lineBuffRGB888[x*6 + 4] = data2 >> 8;
-      sp_lineBuffRGB888[x*6 + 5] = data2 & 0x00FF;
-    }
-    if(jpeg_write_scanlines(sp_cinfo, s_jsamprow, 1) != 1) {
-      LOG_E("Single Encode Stop at line %d\n", y);
-      ret |= liveviewCtrl_encodeJpegFinish();
-      ret |= liveviewCtrl_writeFileFinish();
-      return ret;
-    }
-  }
-  ret |= liveviewCtrl_encodeJpegFinish();
+  ret |= liveviewCtrl_encodeJpegFrame();
   ret |= liveviewCtrl_writeFileFinish();
-  LOG("encode time = %d\n", HAL_GetTick() - start);
 
+  LOG("encode time = %d\n", HAL_GetTick() - start);
   LOG("Single Encode Finish\n");
 
-  /*** start liveview ***/
+  /*** restart liveview ***/
   ret |= liveviewCtrl_startLiveView();
-  return RET_OK;
+
+  if(ret != RET_OK) LOG_E("%d\n", ret);
+  return ret;
+}
+
+static RET liveviewCtrl_movieRecordStart()
+{
+  LOG("Movie Record Start\n");
+  RET ret = RET_OK;
+  char filename[14] = FILENAME_MOVIE;
+  ret |= liveviewCtrl_stopLiveView();
+
+  s_nextFrameReady = 1; // the first frame is always ready because I can reuse liveview image
+  s_lastFrameStartTimeMSec = HAL_GetTick();
+
+  ret |= liveviewCtrl_generateFilename(filename, FILENAME_NUM_POS);
+  LOG("create %s\n", filename);
+  ret |= liveviewCtrl_writeFileStart(filename);
+  if(ret != RET_OK) {
+    ret |= liveviewCtrl_writeFileFinish();
+    LOG_E("Movie Record End by error: %08X\n", ret);
+    return ret;
+  }
+
+  camera_registerCallback(0, liveviewCtrl_cbVsync);
+
+  return ret;
+}
+
+static RET liveviewCtrl_movieRecordFinish()
+{
+  RET ret = RET_OK;
+
+  camera_registerCallback(0, 0);
+
+  ret |= liveviewCtrl_writeFileFinish();
+  ret |= liveviewCtrl_startLiveView();
+  if(ret != RET_OK) {
+    LOG_E("Movie Encode End by error: %08X\n", ret);
+  }
+  LOG("Movie Record Finish\n");
+  return ret;
+}
+
+static RET liveviewCtrl_movieRecordFrame()
+{
+  RET ret = RET_OK;
+
+  if(s_nextFrameReady) {
+    if(HAL_GetTick() - s_lastFrameStartTimeMSec > CAP_MOTION_JPEG_FPS_MSEC) { // control fps
+      LOG("Movie One Frame Encode. Current FPS(msec) = %d\n", HAL_GetTick() - s_lastFrameStartTimeMSec);
+      s_lastFrameStartTimeMSec = HAL_GetTick();
+      /* encode one frame (do not close file yet) */
+      ret |= liveviewCtrl_encodeJpegFrame();
+      /* capture next frame */
+      void* displayHandle = display_getDisplayHandle();
+      display_setArea(0, 0, CAP_SIZE_WIDTH - 1, CAP_SIZE_HEIGHT - 1);
+      ret |= camera_startCap(CAMERA_CAP_SINGLE_FRAME, displayHandle);
+      s_nextFrameReady = 0;
+    } else {
+      // skip for fps control
+    }
+  } else {
+    /* not ready (copying image data from camera to display) */
+  }
+
+  return ret;
+}
+
+static void liveviewCtrl_cbVsync(uint32_t frame)
+{
+  camera_stopCap();
+  s_nextFrameReady = 1;
+}
+
+static RET liveviewCtrl_encodeJpegFrame()
+{
+  RET ret = RET_OK;
+
+  /*** alloc memory ***/
+  sp_cinfo = pvPortMalloc(sizeof(struct jpeg_compress_struct));
+  sp_jerr  = pvPortMalloc(sizeof(struct jpeg_error_mgr));
+  sp_lineBuffRGB888 = pvPortMalloc(CAP_SIZE_WIDTH * 3);
+
+  if( (sp_cinfo == 0) || (sp_jerr == 0) || (sp_lineBuffRGB888 == 0) ){
+    LOG_E("not enough memory\n");
+    vPortFree(sp_cinfo);
+    vPortFree(sp_jerr);
+    vPortFree(sp_lineBuffRGB888);
+    return RET_ERR;
+  }
+
+  /*** prepare libjpeg ***/
+  s_jsamprow[0] = sp_lineBuffRGB888;
+  sp_cinfo->err = jpeg_std_error(sp_jerr);
+  jpeg_create_compress(sp_cinfo);
+  jpeg_stdio_dest(sp_cinfo, sp_fil);
+
+  /* jpeg encode setting */
+  sp_cinfo->image_width  = CAP_SIZE_WIDTH;
+  sp_cinfo->image_height = CAP_SIZE_HEIGHT;
+  sp_cinfo->input_components = 3;
+  sp_cinfo->in_color_space = JCS_RGB;
+  jpeg_set_defaults(sp_cinfo);
+  jpeg_set_quality(sp_cinfo, 70, TRUE);
+  jpeg_start_compress(sp_cinfo, TRUE);
+
+  /*** read pixel data from display and encode line by line ***/
+  display_setAreaRead(0, 0, CAP_SIZE_WIDTH - 1, CAP_SIZE_HEIGHT - 1);
+  for(uint32_t y = 0; y < CAP_SIZE_HEIGHT; y++) {
+    /* read one line from display device (as an external RAM) */
+    display_readLineRGB888(sp_lineBuffRGB888, CAP_SIZE_WIDTH);
+    /* encode one line */
+    if(jpeg_write_scanlines(sp_cinfo, s_jsamprow, 1) != 1) {
+      LOG_E("Single Encode Stop at line %d\n", y);
+      break;
+    }
+  }
+
+  /*** finalize libjpeg ***/
+  jpeg_finish_compress(sp_cinfo);
+  jpeg_destroy_compress(sp_cinfo);
+
+  /*** free memory ***/
+  vPortFree(sp_cinfo);
+  vPortFree(sp_jerr);
+  vPortFree(sp_lineBuffRGB888);
+
+  return ret;
 }
 
 static RET liveviewCtrl_writeFileStart(char* filename)
@@ -376,141 +475,9 @@ static RET liveviewCtrl_writeFileFinish()
   return ret;
 }
 
-static RET liveviewCtrl_encodeJpegStart()
+static RET liveviewCtrl_generateFilename(char* filename, uint8_t numPos)
 {
-  RET ret = RET_OK;
-
-  sp_cinfo = pvPortMalloc(sizeof(struct jpeg_compress_struct));
-  sp_jerr  = pvPortMalloc(sizeof(struct jpeg_error_mgr));
-  sp_lineBuffRGB888 = pvPortMalloc(CAP_SIZE_WIDTH * 3);
-
-  if( (sp_cinfo == 0) || (sp_jerr == 0) || (sp_lineBuffRGB888 == 0) ){
-    LOG_E("not enough memory\n");
-    vPortFree(sp_cinfo);
-    vPortFree(sp_jerr);
-    vPortFree(sp_lineBuffRGB888);
-    return RET_ERR;
-  }
-
-  s_jsamprow[0] = sp_lineBuffRGB888;
-
-  sp_cinfo->err = jpeg_std_error(sp_jerr);
-  jpeg_create_compress(sp_cinfo);
-
-  jpeg_stdio_dest(sp_cinfo, sp_fil);
-
-  sp_cinfo->image_width  = CAP_SIZE_WIDTH;
-  sp_cinfo->image_height = CAP_SIZE_HEIGHT;
-  sp_cinfo->input_components = 3;
-  sp_cinfo->in_color_space = JCS_RGB;
-  jpeg_set_defaults(sp_cinfo);
-  jpeg_set_quality(sp_cinfo, 70, TRUE);
-  jpeg_start_compress(sp_cinfo, TRUE);
-
-  return ret;
-}
-
-static RET liveviewCtrl_encodeJpegFinish()
-{
-  RET ret = RET_OK;
-
-  jpeg_finish_compress(sp_cinfo);
-  jpeg_destroy_compress(sp_cinfo);
-
-  vPortFree(sp_cinfo);
-  vPortFree(sp_jerr);
-  vPortFree(sp_lineBuffRGB888);
-
-  return ret;
-}
-
-
-static RET liveviewCtrl_movieRecordStart()
-{
-  LOG("Movie Encode Start\n");
-  RET ret = RET_OK;
-  char filename[14] = CAP_NAME_MOVIE;
-  ret |= liveviewCtrl_stopLiveView();
-
-  ret |= liveviewCtrl_generateFilename(filename, CAP_NAME_INDEX_POS);
-  LOG("create %s\n", filename);
-  ret |= liveviewCtrl_writeFileStart(filename);
-  if(ret != RET_OK) {
-    ret |= liveviewCtrl_writeFileFinish();
-    LOG_E("Movie Encode End by error: %08X\n", ret);
-    return ret;
-  }
-
-  return ret;
-}
-
-static RET liveviewCtrl_movieRecordFinish()
-{
-  RET ret = RET_OK;
-  ret |= liveviewCtrl_writeFileFinish();
-
-  liveviewCtrl_stopLiveView();
-
-  /*** start liveview ***/
-  ret |= liveviewCtrl_startLiveView();
-
-
-  s_requestStopMovie = 0;
-  s_status = ACTIVE;
-  LOG("Movie Encode Finish\n");
-  return ret;
-}
-
-static RET liveviewCtrl_movieRecordFrame()
-{
-  LOG("Movie One Frame Encode Start\n");
-  RET ret = RET_OK;
-  uint16_t dummy;
-
-  // todo wait until dcmi dma done. callbackŽg‚¤
-
-  ret |= liveviewCtrl_encodeJpegStart();
-  if(ret != RET_OK) {
-    ret |= liveviewCtrl_encodeJpegFinish();
-    ret |= liveviewCtrl_writeFileFinish();
-    LOG_E("Single Encode End by error: %08X\n", ret);
-    return ret;
-  }
-  lcdIli9341_setAreaRead(0, 0, CAP_SIZE_WIDTH - 1, CAP_SIZE_HEIGHT - 1);
-  dummy = *((volatile uint16_t* )(lcdIli9341_getDrawAddress()));
-  for(uint32_t y = 0; y < 240; y++) {
-    for(uint32_t x = 0; x < 320/2; x++){
-      uint16_t data0 = *((volatile uint16_t* )(lcdIli9341_getDrawAddress()));
-      uint16_t data1 = *((volatile uint16_t* )(lcdIli9341_getDrawAddress()));
-      uint16_t data2 = *((volatile uint16_t* )(lcdIli9341_getDrawAddress()));
-      sp_lineBuffRGB888[x*6 + 0] = data0 >> 8;
-      sp_lineBuffRGB888[x*6 + 1] = data0 & 0x00FF;
-      sp_lineBuffRGB888[x*6 + 2] = data1 >> 8;
-      sp_lineBuffRGB888[x*6 + 3] = data1 & 0x00FF;
-      sp_lineBuffRGB888[x*6 + 4] = data2 >> 8;
-      sp_lineBuffRGB888[x*6 + 5] = data2 & 0x00FF;
-    }
-    if(jpeg_write_scanlines(sp_cinfo, s_jsamprow, 1) != 1) {
-      LOG_E("Single Encode Stop at line %d\n", y);
-      ret |= liveviewCtrl_encodeJpegFinish();
-      ret |= liveviewCtrl_writeFileFinish();
-      return ret;
-    }
-  }
-  ret |= liveviewCtrl_encodeJpegFinish();
-
-  void* displayHandle = display_getDisplayHandle();
-  display_setArea(0, 0, CAP_SIZE_WIDTH - 1, CAP_SIZE_HEIGHT - 1);
-  ret |= camera_startCap(CAMERA_CAP_SINGLE_FRAME, displayHandle);
-
-  return ret;
-}
-
-
-
-static RET liveviewCtrl_generateFilename(char* filename, uint8_t posIndex)
-{
-  static uint8_t s_index = 0;
+  static uint8_t s_number = 0;
 
   FRESULT ret;
   FATFS *p_fatFs = pvPortMalloc(sizeof(FATFS));
@@ -523,13 +490,13 @@ static RET liveviewCtrl_generateFilename(char* filename, uint8_t posIndex)
 
   f_mount(p_fatFs, "", 0);
   do {
-    uint8_t num100 = (s_index/100) % 10;
-    uint8_t num10  = (s_index/10) % 10;
-    uint8_t num1   = (s_index/1) % 10;
-    filename[posIndex + 0] = '0' + num100;
-    filename[posIndex + 1] = '0' + num10;
-    filename[posIndex + 2] = '0' + num1;
-    s_index++;
+    uint8_t num100 = (s_number/100) % 10;
+    uint8_t num10  = (s_number/10) % 10;
+    uint8_t num1   = (s_number/1) % 10;
+    filename[numPos + 0] = '0' + num100;
+    filename[numPos + 1] = '0' + num10;
+    filename[numPos + 2] = '0' + num1;
+    s_number++;
     ret = f_open(p_fil, filename, FA_OPEN_EXISTING);
     f_close(p_fil);
   } while(ret == FR_OK);

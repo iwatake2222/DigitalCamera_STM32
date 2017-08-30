@@ -38,23 +38,6 @@ static void lcdIli9341_writeCmd(uint8_t cmd);
 static void lcdIli9341_readData();
 
 /*** External Function Defines ***/
-void lcdIli9341_setAreaRead(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd)
-{
-  lcdIli9341_writeCmd(0x2a);
-  lcdIli9341_writeData(xStart >> 8);
-  lcdIli9341_writeData(xStart & 0xff);
-  lcdIli9341_writeData(xEnd >> 8);
-  lcdIli9341_writeData(xEnd & 0xff);
-
-  lcdIli9341_writeCmd(0x2b);
-  lcdIli9341_writeData(yStart >> 8);
-  lcdIli9341_writeData(yStart & 0xff);
-  lcdIli9341_writeData(yEnd >> 8);
-  lcdIli9341_writeData(yEnd & 0xff);
-
-  lcdIli9341_writeCmd(0x2e);
-}
-
 void lcdIli9341_setArea(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd)
 {
   lcdIli9341_writeCmd(0x2a);
@@ -70,6 +53,26 @@ void lcdIli9341_setArea(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_
   lcdIli9341_writeData(yEnd & 0xff);
 
   lcdIli9341_writeCmd(0x2c);
+}
+
+void lcdIli9341_setAreaRead(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd)
+{
+  lcdIli9341_writeCmd(0x2a);
+  lcdIli9341_writeData(xStart >> 8);
+  lcdIli9341_writeData(xStart & 0xff);
+  lcdIli9341_writeData(xEnd >> 8);
+  lcdIli9341_writeData(xEnd & 0xff);
+
+  lcdIli9341_writeCmd(0x2b);
+  lcdIli9341_writeData(yStart >> 8);
+  lcdIli9341_writeData(yStart & 0xff);
+  lcdIli9341_writeData(yEnd >> 8);
+  lcdIli9341_writeData(yEnd & 0xff);
+
+  lcdIli9341_writeCmd(0x2e);
+
+  // the first read is invalid
+  lcdIli9341_readData();
 }
 
 void lcdIli9341_drawRect(uint16_t xStart, uint16_t yStart, uint16_t width, uint16_t height, uint16_t color)
@@ -208,25 +211,13 @@ inline static void lcdIli9341_readData()
 {
 #ifdef BIT_WIDTH_16
   uint16_t data = LCD_DATA;
-  printf("%04X\n", data);
+//  printf("%04X\n", data);
 #else
   uint8_t data = LCD_DATA;
   printf("%02X\n", data);
 #endif
-
 }
 
-void lcdIli9341_readDataEx()
-{
-#ifdef BIT_WIDTH_16
-  uint16_t data = LCD_DATA;
-  printf("%04X\n", data);
-#else
-  uint8_t data = LCD_DATA;
-  printf("%02X\n", data);
-#endif
-
-}
 
 uint16_t convRGB565(uint8_t r, uint8_t g, uint8_t b)
 {
