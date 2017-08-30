@@ -190,13 +190,13 @@ static RET playbackCtrl_init()
   /*** init display ***/
   ret = display_init();
 //  ret |= display_drawRect(0, 0, 100, 100, DISPLAY_COLOR_RED);
-  if(ret != RET_OK) LOG_E("\n");
+  if(ret != RET_OK) LOG_E("%08X\n", ret);
 
   /*** init file ***/
   ret = file_seekStart("/");
-  if(ret != RET_OK) LOG_E("\n");
+  if(ret != RET_OK) LOG_E("%08X\n", ret);
 
-  LOG("init %d\n", ret);
+  LOG("init %%08X\n", ret);
 
   return ret;
 }
