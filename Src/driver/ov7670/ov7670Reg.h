@@ -29,11 +29,11 @@ const uint8_t OV7670_reg[][2] = {
   {0x73, 0xf1}, // DSP clock /= 2
 
   /* windowing (empirically decided...) */
-  {0x17, 0x14},   // HSTART
-  {0x18, 0x02},   // HSTOP
+  {0x17, 0x16},   // HSTART
+  {0x18, 0x04},   // HSTOP
   {0x32, 0x80},   // HREF
-  {0x19, 0x02},   // VSTART =  10 ( = 2 * 4 + 2)
-  {0x1a, 0x7a},   // VSTOP  = 490 ( = 122 * 4 + 2)
+  {0x19, 0x03},   // VSTART =  14 ( = 3 * 4 + 2)
+  {0x1a, 0x7b},   // VSTOP  = 494 ( = 123 * 4 + 2)
   {0x03, 0x0a},   // VREF (VSTART_LOW = 2, VSTOP_LOW = 2)
 
   /* color matrix coefficient */
@@ -57,11 +57,11 @@ const uint8_t OV7670_reg[][2] = {
 
   /* 3a */
 //  {0x13, 0x84},
-  {0x14, 0x0a},   // AGC Ceiling = 2x
-  {0x5F, 0x2f},   // AWB B Gain Range (empirically decided)
-                  // otherwise bright scene becomes yellow (purple). might be because of color matrix
-  {0x60, 0x98},   // AWB R Gain Range (empirically decided)
-  {0x61, 0x70},   // AWB G Gain Range (empirically decided)
+//  {0x14, 0x0a},   // AGC Ceiling = 2x
+//  {0x5F, 0x2f},   // AWB B Gain Range (empirically decided)
+//                  // without this bright scene becomes yellow (purple). might be because of color matrix
+//  {0x60, 0x98},   // AWB R Gain Range (empirically decided)
+//  {0x61, 0x70},   // AWB G Gain Range (empirically decided)
   {0x41, 0x38},   // edge enhancement, de-noise, AWG gain enabled
 
 
@@ -102,9 +102,10 @@ const uint8_t OV7670_reg[][2] = {
   {0x89, 208},
   {0x7a, 64},
 #endif
+
   /* fps */
 //  {0x6B, 0x4a}, //PLL  x4
-  {0x11, 0x01}, // pre-scalar = 1/2
+  {0x11, 0x00}, // pre-scalar = 1/1
 
   /* others */
   {0x1E, 0x31}, //mirror flip

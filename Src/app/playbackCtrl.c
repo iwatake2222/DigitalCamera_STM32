@@ -67,7 +67,6 @@ void playbackCtrl_task(void const * argument)
 {
   LOG("task start\n");
   osMessageQId myQueueId = getQueueId(PLAYBACK_CTRL);
-  uint32_t waitTimeForFPS = MOTION_JPEG_FPS_MSEC_EX;
 
   while(1) {
     osEvent event;
@@ -468,6 +467,8 @@ static RET playbackCtrl_decodeJpeg(FIL *p_file, uint32_t maxWidth, uint32_t maxH
 {
   int ret = 0;
 
+  uint32_t start = HAL_GetTick();
+
   /*** alloc memory ***/
   struct jpeg_decompress_struct* p_cinfo = pvPortMalloc(sizeof(struct jpeg_decompress_struct));
   struct jpeg_error_mgr* p_jerr          = pvPortMalloc(sizeof(struct jpeg_error_mgr));
@@ -526,7 +527,6 @@ static RET playbackCtrl_decodeJpeg(FIL *p_file, uint32_t maxWidth, uint32_t maxH
   }
 
   /*** decode jpeg and display it line by line ***/
-//  uint32_t start = HAL_GetTick();
   while( p_cinfo->output_scanline < p_cinfo->output_height ) {
     if (jpeg_read_scanlines(p_cinfo, buffer, 1) != 1) {
       LOG_E("Decode Stop at line %d\n", p_cinfo->output_scanline);
@@ -534,7 +534,6 @@ static RET playbackCtrl_decodeJpeg(FIL *p_file, uint32_t maxWidth, uint32_t maxH
     }
     playbackCtrl_drawRGB888(p_lineBuffRGB888, p_cinfo->output_width);
   }
-//  printf("%d\n", HAL_GetTick() - start);
 
   ret = jpeg_finish_decompress(p_cinfo);
   if(ret != 1) {
@@ -545,6 +544,10 @@ static RET playbackCtrl_decodeJpeg(FIL *p_file, uint32_t maxWidth, uint32_t maxH
   vPortFree(p_cinfo);
   vPortFree(p_jerr);
   vPortFree(p_lineBuffRGB888);
+
+
+//  printf("decode time = %d\n", HAL_GetTick() - start);
+
   return RET_OK;
 }
 

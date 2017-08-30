@@ -443,7 +443,7 @@ static RET liveviewCtrl_encodeJpegFrame()
   sp_cinfo->input_components = 3;
   sp_cinfo->in_color_space = JCS_RGB;
   jpeg_set_defaults(sp_cinfo);
-  jpeg_set_quality(sp_cinfo, 70, TRUE);
+  jpeg_set_quality(sp_cinfo, JPEG_QUALITY, TRUE);
   jpeg_start_compress(sp_cinfo, TRUE);
 
   /*** read pixel data from display and encode line by line ***/
@@ -529,4 +529,40 @@ static RET liveviewCtrl_generateFilename(char* filename, uint8_t numPos)
       return RET_OK;
   }
   return RET_ERR;
+}
+
+void display_readImageRGB565(uint8_t *p_buff, uint32_t pixelNum)
+{
+  /* can I use DMA for this? */
+  volatile uint16_t* p_lcdAddr = (volatile uint16_t* )(lcdIli9341_getDrawAddress());
+  for(uint32_t x = 0; x < pixelNum / 2; x++){
+    uint16_t data0 = *p_lcdAddr;
+    uint16_t data1 = *p_lcdAddr;
+    uint16_t data2 = *p_lcdAddr;
+    uint8_t r0 = data0 >> 8;
+    uint8_t g0 = data0 & 0x00FF;
+    uint8_t b0 = data1 >> 8;
+    uint8_t r1 = data1 & 0x00FF;
+    uint8_t g1 = data2 >> 8;
+    uint8_t b1 = data2 & 0x00FF;
+    p_buff[x*4 + 0] = convRGB565(r0, g0, b0) >> 8;
+    p_buff[x*4 + 1] = convRGB565(r0, g0, b0) & 0x00FF;
+    p_buff[x*4 + 2] = convRGB565(r1, g1, b1) >> 8;
+    p_buff[x*4 + 3] = convRGB565(r1, g1, b1) & 0x00FF;
+  }
+}
+
+static RET liveviewCtrl_encodeRGB565Frame()
+{
+  uint32_t num;
+  uint8_t *sp_lineBuffRGB565 = pvPortMalloc(IMAGE_SIZE_WIDTH * 2);
+  display_setAreaRead(0, 0, IMAGE_SIZE_WIDTH - 1, IMAGE_SIZE_HEIGHT - 1);
+  for(uint32_t y = 0; y < IMAGE_SIZE_HEIGHT; y++) {
+    /* read one line from display device (as an external RAM) */
+    display_readImageRGB565(sp_lineBuffRGB565, IMAGE_SIZE_WIDTH);
+    f_write(sp_fil, sp_lineBuffRGB565, IMAGE_SIZE_WIDTH*2, &num);
+  }
+
+  vPortFree(sp_lineBuffRGB565);
+  return RET_OK;
 }
