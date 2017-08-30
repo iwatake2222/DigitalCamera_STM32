@@ -6,18 +6,18 @@
  */
 #include <stdio.h>
 #include "cmsis_os.h"
+#include "ff.h"
 #include "jpeglib.h"
 #include "common.h"
 #include "commonHigh.h"
+#include "applicationSettings.h"
 #include "../hal/display.h"
 #include "../service/file.h"
 
 /*** Internal Const Values, Macros ***/
 #define LOG(str, ...) printf("[PB_CTRL:%d] " str, __LINE__, ##__VA_ARGS__);
 #define LOG_E(str, ...) printf("[PB_CTRL_ERR:%d] " str, __LINE__, ##__VA_ARGS__);
-#define PLAY_SIZE_WIDTH  320
-#define PLAY_SIZE_HEIGHT 240
-#define MOTION_JPEG_FPS_MSEC  100   //(10fps)
+
 
 // need to modify jdatasrc.c
 #define INPUT_BUF_SIZE  512  /* choose an efficiently fread'able size */
@@ -32,8 +32,8 @@ typedef enum {
 /*** Internal Static Variables ***/
 static STATUS s_status = INACTIVE;
 
-static uint8_t* sp_movieLineBuffRGB888;   // line buffer for motion jpeg
-static FIL*     sp_movieFil;              // file for motion jpeg
+static uint8_t *sp_movieLineBuffRGB888;   // line buffer for motion jpeg
+static FIL     *sp_movieFil;              // file for motion jpeg
 
 /*** Internal Function Declarations ***/
 static void playbackCtrl_sendComp(MSG_STRUCT *p_recvMmsg, RET ret);
@@ -60,7 +60,7 @@ void playbackCtrl_task(void const * argument)
 {
   LOG("task start\n");
   osMessageQId myQueueId = getQueueId(PLAYBACK_CTRL);
-  uint32_t waitTimeForFPS = MOTION_JPEG_FPS_MSEC;
+  uint32_t waitTimeForFPS = MOTION_JPEG_FPS_MSEC_EX;
 
   while(1) {
     osEvent event;
@@ -92,7 +92,7 @@ void playbackCtrl_task(void const * argument)
       if(playTime > MOTION_JPEG_FPS_MSEC) {
         waitTimeForFPS = 1;
       } else {
-        waitTimeForFPS = MOTION_JPEG_FPS_MSEC - playTime;
+        waitTimeForFPS = MOTION_JPEG_FPS_MSEC_EX - playTime;
       }
     }
   }
@@ -101,7 +101,7 @@ void playbackCtrl_task(void const * argument)
 /*** Internal Function Defines ***/
 static void playbackCtrl_sendComp(MSG_STRUCT *p_recvMmsg, RET ret)
 {
-  MSG_STRUCT *p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+  MSG_STRUCT *p_sendMsg = allocMemoryPoolMessage(); // receiver must free
   p_sendMsg->sender  = PLAYBACK_CTRL;
   p_sendMsg->command = COMMAND_COMP(p_recvMmsg->command);
   p_sendMsg->param.val = ret;
@@ -196,7 +196,7 @@ static RET playbackCtrl_init()
   ret = file_seekStart("/");
   if(ret != RET_OK) LOG_E("%08X\n", ret);
 
-  LOG("init %%08X\n", ret);
+  LOG("init %08X\n", ret);
 
   return ret;
 }
@@ -294,19 +294,19 @@ static RET playbackCtrl_playRGB565(char* filename)
   uint32_t num;
   RET ret;
 
-  uint16_t* pLineBuff = pvPortMalloc(PLAY_SIZE_WIDTH*2);
+  uint16_t* pLineBuff = pvPortMalloc(IMAGE_SIZE_WIDTH*2);
   if(pLineBuff == 0) {
     LOG_E("\n");
     return RET_ERR;
   }
 
   ret = file_loadStart(filename);
-  ret |= display_setArea(0, 0, PLAY_SIZE_WIDTH - 1, PLAY_SIZE_HEIGHT - 1);
+  ret |= display_setArea(0, 0, IMAGE_SIZE_WIDTH - 1, IMAGE_SIZE_HEIGHT - 1);
 
-  for(uint32_t i = 0; i < PLAY_SIZE_HEIGHT; i++){
-    ret |= file_load(pLineBuff, PLAY_SIZE_WIDTH * 2, &num);
-    display_drawBuffer(pLineBuff, num / 2);
-    if( ret != RET_OK || num != PLAY_SIZE_WIDTH*2) break;
+  for(uint32_t i = 0; i < IMAGE_SIZE_HEIGHT; i++){
+    ret |= file_load(pLineBuff, IMAGE_SIZE_WIDTH * 2, &num);
+    display_writeImage(pLineBuff, num / 2);
+    if( ret != RET_OK || num != IMAGE_SIZE_WIDTH*2) break;
   }
   ret |= file_loadStop();
 
@@ -321,9 +321,9 @@ static RET playbackCtrl_playJPEG(char* filename)
 {
   RET ret = RET_OK;
   FIL* p_fil;
-  ret |= display_setArea(0, 0, PLAY_SIZE_WIDTH - 1, PLAY_SIZE_HEIGHT - 1);
+  ret |= display_setArea(0, 0, IMAGE_SIZE_WIDTH - 1, IMAGE_SIZE_HEIGHT - 1);
 
-  uint8_t* p_lineBuffRGB888 = pvPortMalloc(PLAY_SIZE_WIDTH*3);
+  uint8_t* p_lineBuffRGB888 = pvPortMalloc(IMAGE_SIZE_WIDTH*3);
   if(p_lineBuffRGB888 == 0) {
     LOG_E("\n");
     return RET_ERR;
@@ -338,8 +338,8 @@ static RET playbackCtrl_playJPEG(char* filename)
     return RET_ERR;
   }
 
-  display_drawRect(0, 0, PLAY_SIZE_WIDTH, PLAY_SIZE_HEIGHT, 0x0000);
-  ret |= playbackCtrl_decodeJpeg(p_fil, PLAY_SIZE_WIDTH, PLAY_SIZE_HEIGHT, p_lineBuffRGB888);
+  display_drawRect(0, 0, IMAGE_SIZE_WIDTH, IMAGE_SIZE_HEIGHT, 0x0000);
+  ret |= playbackCtrl_decodeJpeg(p_fil, IMAGE_SIZE_WIDTH, IMAGE_SIZE_HEIGHT, p_lineBuffRGB888);
   ret |= file_loadStop();
   vPortFree(p_lineBuffRGB888);
 
@@ -468,14 +468,14 @@ static RET playbackCtrl_calcJpegOutputSize(struct jpeg_decompress_struct* p_cinf
 static RET playbackCtrl_playMotionJPEGStart(char* filename)
 {
   RET ret;
-  ret = display_drawRect(0, 0, PLAY_SIZE_WIDTH, PLAY_SIZE_HEIGHT, 0x0000);
+  ret = display_drawRect(0, 0, IMAGE_SIZE_WIDTH, IMAGE_SIZE_HEIGHT, 0x0000);
 
   if( (sp_movieLineBuffRGB888 != 0) || (sp_movieFil != 0) ){
     LOG_E("for got stopping movie play\n");
     return RET_ERR_STATUS;
   }
 
-  sp_movieLineBuffRGB888 = pvPortMalloc(PLAY_SIZE_WIDTH*3);
+  sp_movieLineBuffRGB888 = pvPortMalloc(IMAGE_SIZE_WIDTH*3);
   if(sp_movieLineBuffRGB888 == 0) {
     LOG_E("\n");
     return RET_ERR;
@@ -513,7 +513,7 @@ static RET playbackCtrl_playMotionJPEGStop()
 static RET playbackCtrl_playMotionJPEGNext()
 {
   RET ret;
-  ret = playbackCtrl_decodeJpeg(sp_movieFil, PLAY_SIZE_WIDTH, PLAY_SIZE_HEIGHT, sp_movieLineBuffRGB888);
+  ret = playbackCtrl_decodeJpeg(sp_movieFil, IMAGE_SIZE_WIDTH, IMAGE_SIZE_HEIGHT, sp_movieLineBuffRGB888);
   if(ret != RET_OK) {
     LOG_E("%d\n", ret);
     playbackCtrl_playMotionJPEGStop();

@@ -13,7 +13,6 @@ typedef enum {
   MODE_MGR,
   LIVEVIEW_CTRL,
   PLAYBACK_CTRL,
-  CAPTURE_CTRL,
   INPUT,
 } MODULE_ID;
 
@@ -21,7 +20,6 @@ typedef enum {
 typedef enum {
   CMD_START,
   CMD_STOP,
-  CMD_CAPTURE,
   CMD_REGISTER,
   CMD_UNREGISTER,
   CMD_NOTIFY_INPUT,
@@ -45,7 +43,7 @@ typedef struct {
   union {
     uint32_t  val;
     struct {
-      int16_t type;
+      int16_t type;   // INPUT_TYPE
       int16_t status; // only for dial
     }input;
   }param;

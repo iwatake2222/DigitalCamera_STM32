@@ -56,7 +56,7 @@ void input_task(void const * argument)
       }
 
       /* return comp */
-      MSG_STRUCT *p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+      MSG_STRUCT *p_sendMsg = allocMemoryPoolMessage(); // receiver must free
       p_sendMsg->sender  = INPUT;
       p_sendMsg->command = COMMAND_COMP(p_recvMsg->command);
       p_sendMsg->param.val = ret;
@@ -73,7 +73,7 @@ void input_task(void const * argument)
 /*** Internal Function Defines ***/
 static RET input_regist(MSG_STRUCT *p_msg)
 {
-  if (p_msg->param.input.type >= INPUT_TYPE_NUM) return RET_ERR;
+  if (p_msg->param.input.type >= INPUT_TYPE_NUM) return RET_ERR_PARAM;
 
   for(uint32_t i = 0; i < INPUT_MAX_REGISTER_NUM; i++) {
     if (s_registeredId[p_msg->param.input.type][i] == 0) {
@@ -87,7 +87,7 @@ static RET input_regist(MSG_STRUCT *p_msg)
 static RET input_unregist(MSG_STRUCT *p_msg)
 {
   RET ret = RET_ERR;
-  if (p_msg->param.input.type >= INPUT_TYPE_NUM) return RET_ERR;
+  if (p_msg->param.input.type >= INPUT_TYPE_NUM) return RET_ERR_PARAM;
 
   for(uint32_t i = 0; i < INPUT_MAX_REGISTER_NUM; i++) {
     if (s_registeredId[p_msg->param.input.type][i] == p_msg->sender) {
@@ -106,7 +106,7 @@ static void input_init()
 
 static void input_checkStatus()
 {
-  /* state history. [0] = state(n-1), [1] = state(n-2) */
+  /* state history to cancel chattering. [0] = state(n-1), [1] = state(n-2) */
   static GPIO_PinState s_btnMode[2]   = {GPIO_PIN_SET, GPIO_PIN_SET};
   static GPIO_PinState s_btnCap[2]    = {GPIO_PIN_SET, GPIO_PIN_SET};
   static GPIO_PinState s_btnOther0[2] = {GPIO_PIN_SET, GPIO_PIN_SET};
@@ -161,10 +161,10 @@ static void input_notify(INPUT_TYPE type, int16_t status)
 {
   for(uint32_t i = 0; i < INPUT_MAX_REGISTER_NUM; i++) {
     if (s_registeredId[type][i] != 0) {
-      MSG_STRUCT *p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+      MSG_STRUCT *p_sendMsg = allocMemoryPoolMessage(); // receiver must free
       p_sendMsg->sender  = INPUT;
       p_sendMsg->command = CMD_NOTIFY_INPUT;
-      p_sendMsg->param.input.type = type;
+      p_sendMsg->param.input.type   = type;
       p_sendMsg->param.input.status = status;
       osMessagePut(getQueueId(s_registeredId[type][i]), (uint32_t)p_sendMsg, osWaitForever);
     }

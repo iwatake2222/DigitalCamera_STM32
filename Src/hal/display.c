@@ -64,26 +64,28 @@ uint32_t display_getPixelFormat()
 }
 
 
-void display_drawBuffer(void* canvasHandle, uint32_t pixelNum)
+void display_writeImage(void* srcHandle, uint32_t pixelNum)
 {
-  uint16_t *pBuff = canvasHandle;
+  uint16_t *p_srcBuff = srcHandle;
+  volatile uint16_t *p_dstBuff = lcdIli9341_getDrawAddress();
   for(uint32_t x = 0; x < pixelNum; x++) {
-    *((uint16_t*)lcdIli9341_getDrawAddress()) = *pBuff;
-    pBuff++;
+    *p_dstBuff = *p_srcBuff;
+    p_srcBuff++;
   }
 }
 
 inline void display_putPixelRGB565(uint16_t rgb565)
 {
-  *((uint16_t*)lcdIli9341_getDrawAddress()) = rgb565;
+  volatile uint16_t *p_dstBuff = lcdIli9341_getDrawAddress();
+  *p_dstBuff = rgb565;
 }
 
 
-void display_readLineRGB888(uint8_t *p_buff, uint32_t width)
+void display_readImageRGB888(uint8_t *p_buff, uint32_t pixelNum)
 {
   /* can I use DMA for this? */
   volatile uint16_t* p_lcdAddr = (volatile uint16_t* )(lcdIli9341_getDrawAddress());
-  for(uint32_t x = 0; x < width / 2; x++){
+  for(uint32_t x = 0; x < pixelNum / 2; x++){
     uint16_t data0 = *p_lcdAddr;
     uint16_t data1 = *p_lcdAddr;
     uint16_t data2 = *p_lcdAddr;

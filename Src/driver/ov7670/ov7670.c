@@ -85,7 +85,7 @@ RET ov7670_startCap(uint32_t capMode, uint32_t destAddress)
 RET ov7670_stopCap()
 {
   HAL_DCMI_Stop(sp_hdcmi);
-  HAL_Delay(30);
+//  HAL_Delay(30);
   return RET_OK;
 }
 

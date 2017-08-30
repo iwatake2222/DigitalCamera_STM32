@@ -17,7 +17,6 @@ typedef enum {
   MODE_BOOT = 0,
   MODE_LIVEVIEW,
   MODE_PLAYBACK,
-  MODE_CAPTURING,
   MODE_NUM,
 } MODE;
 
@@ -26,7 +25,6 @@ typedef enum {
   ACT_STOP_LIVEVIEW,
   ACT_START_PLAYBACK,
   ACT_STOP_PLAYBACK,
-  ACT_DO_CAPTURE,    // capture automatically stops and return comp when it's done
   ACT_ENTER_LIVEVIEW_MODE,
   ACT_ENTER_PLAYBACK_MODE,
   ACT_END = -1,
@@ -45,27 +43,17 @@ static ACTION s_sequenceMode[MODE_NUM][SEQUENCE_MAX] = {
   {ACT_END, ACT_END, ACT_END, ACT_END, ACT_END}, // on boot status
   {ACT_STOP_LIVEVIEW, ACT_START_PLAYBACK, ACT_ENTER_PLAYBACK_MODE, ACT_END, ACT_END}, // on liveview status
   {ACT_STOP_PLAYBACK, ACT_START_LIVEVIEW, ACT_ENTER_LIVEVIEW_MODE, ACT_END, ACT_END}, // on playback status
-  {ACT_END, ACT_END, ACT_END, ACT_END, ACT_END}, // on capturing status
 };
 
-// sequences when capture button pressed
-static ACTION s_sequenceCapture[MODE_NUM][SEQUENCE_MAX] = {
-  {ACT_END, ACT_END, ACT_END, ACT_END, ACT_END}, // on boot status
-  {ACT_STOP_LIVEVIEW, ACT_DO_CAPTURE, ACT_START_LIVEVIEW, ACT_ENTER_LIVEVIEW_MODE, ACT_END}, // on liveview status
-  {ACT_END, ACT_END, ACT_END, ACT_END, ACT_END}, // on playback status
-  {ACT_END, ACT_END, ACT_END, ACT_END, ACT_END}, // on capturing status
-};
-
-static ACTION   *sp_currentAction;
+static ACTION   *sp_currentAction;      // current sequence (e.g. pointer to s_sequenceMode[1])
 static uint32_t s_currentActionIndex;
-
 static MODE s_currentMode = MODE_BOOT;
 
 /*** Internal Function Declarations ***/
 static RET modeMgr_registInput();
 static RET modeMgr_setNewSequence(MSG_STRUCT* p_recvMsg);
-static RET modeMgr_doSequence();
-static RET modeMgr_doSequenceComp(MSG_STRUCT *p_recvMsg);
+static RET modeMgr_actSequence();
+static RET modeMgr_recvComp(MSG_STRUCT *p_recvMsg);
 
 /*** External Function Defines ***/
 void modeMgr_task(void const * argument)
@@ -78,7 +66,7 @@ void modeMgr_task(void const * argument)
   /* change mode by default (boot -> liveview) */
   s_currentActionIndex = 0;
   sp_currentAction = &s_sequenceStart[s_currentActionIndex];
-  modeMgr_doSequence();
+  modeMgr_actSequence();
 
   while(1) {
     osEvent event = osMessageGet(myQueueId, osWaitForever);
@@ -88,13 +76,12 @@ void modeMgr_task(void const * argument)
       switch(p_recvMsg->command) {
       case CMD_NOTIFY_INPUT:
         if (modeMgr_setNewSequence(p_recvMsg) == RET_OK) {
-          modeMgr_doSequence();
+          modeMgr_actSequence();
         }
         break;
       case COMMAND_COMP(CMD_STOP):
       case COMMAND_COMP(CMD_START):
-      case COMMAND_COMP(CMD_CAPTURE):
-        modeMgr_doSequenceComp(p_recvMsg);
+        modeMgr_recvComp(p_recvMsg);
         break;
       default:
         // do nothing (comp from input may come here)
@@ -111,7 +98,7 @@ static RET modeMgr_registInput()
   MSG_STRUCT *p_sendMsg;
 
   /* register to be notified when mode key pressed */
-  p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+  p_sendMsg = allocMemoryPoolMessage(); // receiver must free
   p_sendMsg->command = CMD_REGISTER;
   p_sendMsg->sender  = MODE_MGR;
   p_sendMsg->param.input.type = INPUT_TYPE_KEY_MODE;
@@ -128,14 +115,11 @@ static RET modeMgr_setNewSequence(MSG_STRUCT* p_recvMsg)
     return RET_DO_NOTHING;
   }
 
+  /* start new sequence to change mode */
   switch(p_recvMsg->param.input.type) {
   case INPUT_TYPE_KEY_MODE:
     sp_currentAction = &s_sequenceMode[s_currentMode][0];
     LOG("sequence start by mode button\n");
-    break;
-  case INPUT_TYPE_KEY_CAP:
-    sp_currentAction = &s_sequenceCapture[s_currentMode][0];
-    LOG("sequence start by cap button\n");
     break;
   default:
     return RET_DO_NOTHING;
@@ -146,7 +130,7 @@ static RET modeMgr_setNewSequence(MSG_STRUCT* p_recvMsg)
   return RET_OK;
 }
 
-static RET modeMgr_doSequence()
+static RET modeMgr_actSequence()
 {
   COMMAND command;
   osMessageQId destQueue;
@@ -170,10 +154,6 @@ static RET modeMgr_doSequence()
     command = CMD_STOP;
     destQueue = getQueueId(PLAYBACK_CTRL);
     break;
-  case ACT_DO_CAPTURE:
-    command = CMD_CAPTURE;
-    destQueue = getQueueId(CAPTURE_CTRL);
-    break;
   case ACT_ENTER_LIVEVIEW_MODE:
     s_currentMode = MODE_LIVEVIEW;
     sp_currentAction = 0;
@@ -193,7 +173,7 @@ static RET modeMgr_doSequence()
     return RET_DO_NOTHING;   // sequence done
   }
 
-  MSG_STRUCT *p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+  MSG_STRUCT *p_sendMsg = allocMemoryPoolMessage(); // receiver must free
   p_sendMsg->command = command;
   p_sendMsg->sender  = MODE_MGR;
   p_sendMsg->param.val = 0;
@@ -201,7 +181,7 @@ static RET modeMgr_doSequence()
   return RET_OK;
 }
 
-static RET modeMgr_doSequenceComp(MSG_STRUCT *p_recvMsg)
+static RET modeMgr_recvComp(MSG_STRUCT *p_recvMsg)
 {
   if( !IS_COMMAND_COMP(p_recvMsg->command) ) {
     /* ignore if unexpected message comes */
@@ -219,6 +199,6 @@ static RET modeMgr_doSequenceComp(MSG_STRUCT *p_recvMsg)
   // keep on sequence
   LOG("sequence %d done\n", s_currentActionIndex);
   s_currentActionIndex++;
-  modeMgr_doSequence();
+  modeMgr_actSequence();
   return RET_OK;
 }

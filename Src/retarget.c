@@ -8,10 +8,12 @@
 #include "stm32f4xx_hal.h"
 #include <stdio.h>
 #include "common.h"
-//#include "./uartTerminal/uartTerminal.h"
+#include "./driver/uartTerminal/uartTerminal.h"
 
 void retarget_init()
 {
+  extern UART_HandleTypeDef huart2;
+  uartTerminal_init(&huart2);
   setbuf(stdin, NULL);
   setbuf(stdout, NULL);
   setbuf(stderr, NULL);

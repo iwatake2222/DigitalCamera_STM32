@@ -19,6 +19,7 @@ typedef uint32_t RET;
 #define RET_ERR_STATUS   0x80000008
 #define RET_ERR_PARAM    0x80000010
 #define RET_ERR_FILE     0x80000020
+#define RET_ERR_MEMORY   0x80000040
 
 
 #endif /* COMMON_H_ */

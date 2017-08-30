@@ -7,10 +7,10 @@
 
 /*** Internal Const Values, Macros ***/
 #define BUFFER_SIZE 16
-#define bufferRxWp ( (BUFFER_SIZE - s_huart->hdmarx->Instance->NDTR) & (BUFFER_SIZE - 1) )
+#define bufferRxWp ( (BUFFER_SIZE - sp_huart->hdmarx->Instance->NDTR) & (BUFFER_SIZE - 1) )
 
 /*** Static Variables ***/
-static UART_HandleTypeDef *s_huart;
+static UART_HandleTypeDef *sp_huart;
 static volatile uint8_t s_bufferRx[BUFFER_SIZE];
 static volatile uint8_t s_bufferRxRp = 0;
 
@@ -19,8 +19,8 @@ static volatile uint8_t s_bufferRxRp = 0;
 /*** External Function Defines ***/
 RET uartTerminal_init(UART_HandleTypeDef *huart)
 {
-  s_huart = huart;
-  HAL_UART_Receive_DMA(s_huart, s_bufferRx, BUFFER_SIZE);
+  sp_huart = huart;
+  HAL_UART_Receive_DMA(sp_huart, s_bufferRx, BUFFER_SIZE);
   s_bufferRxRp = 0;
 
 //  /* echo test */
@@ -33,7 +33,7 @@ RET uartTerminal_init(UART_HandleTypeDef *huart)
 RET uartTerminal_send(uint8_t data)
 {
   HAL_StatusTypeDef ret;
-  ret = HAL_UART_Transmit(s_huart, &data, 1, 100);
+  ret = HAL_UART_Transmit(sp_huart, &data, 1, 100);
   if (ret == HAL_OK ) {
     return RET_OK;
   } else {

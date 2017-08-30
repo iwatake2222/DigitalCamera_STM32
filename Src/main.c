@@ -55,10 +55,6 @@
 /* USER CODE BEGIN Includes */
 #include "common.h"
 #include "commonHigh.h"
-//#include "./uartTerminal/uartTerminal.h"
-//#include "./debugMonitor/debugMonitor.h"
-//#include "./lcdIli9341/lcdIli9341.h"
-//#include "./ov7670/ov7670.h"
 
 /* USER CODE END Includes */
 
@@ -75,18 +71,15 @@ TIM_HandleTypeDef htim5;
 UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart2_rx;
 
-DMA_HandleTypeDef hdma_memtomem_dma2_stream0;
 SRAM_HandleTypeDef hsram1;
 
 osThreadId DebugMonitorHandle;
 osThreadId ModeMgrHandle;
 osThreadId LiveviewCtrlHandle;
-osThreadId CaptureCtrlHandle;
 osThreadId PlaybackCtrlHandle;
 osThreadId InputHandle;
 osMessageQId QueueModeMgrHandle;
 osMessageQId QueueLiveviewCtrlHandle;
-osMessageQId QueueCaptureCtrlHandle;
 osMessageQId QueuePlaybackCtrlHandle;
 osMessageQId QueueInputHandle;
 
@@ -109,7 +102,6 @@ static void MX_TIM5_Init(void);
 void debugMonitor_task(void const * argument);
 extern void modeMgr_task(void const * argument);
 extern void liveviewCtrl_task(void const * argument);
-extern void captureCtrl_task(void const * argument);
 extern void playbackCtrl_task(void const * argument);
 extern void input_task(void const * argument);
 
@@ -126,8 +118,6 @@ osMessageQId getQueueId(MODULE_ID moduleId)
     return QueueModeMgrHandle;
   case LIVEVIEW_CTRL:
     return QueueLiveviewCtrlHandle;
-  case CAPTURE_CTRL:
-    return QueueCaptureCtrlHandle;
   case PLAYBACK_CTRL:
     return QueuePlaybackCtrlHandle;
   case INPUT:
@@ -184,7 +174,7 @@ int main(void)
   MX_TIM5_Init();
 
   /* USER CODE BEGIN 2 */
-  uartTerminal_init(&huart2);
+
   retarget_init();
   printf("Hello World\n");
 
@@ -217,10 +207,6 @@ int main(void)
   osThreadDef(LiveviewCtrl, liveviewCtrl_task, osPriorityNormal, 0, 512);
   LiveviewCtrlHandle = osThreadCreate(osThread(LiveviewCtrl), NULL);
 
-  /* definition and creation of CaptureCtrl */
-  osThreadDef(CaptureCtrl, captureCtrl_task, osPriorityNormal, 0, 128);
-  CaptureCtrlHandle = osThreadCreate(osThread(CaptureCtrl), NULL);
-
   /* definition and creation of PlaybackCtrl */
   osThreadDef(PlaybackCtrl, playbackCtrl_task, osPriorityNormal, 0, 512);
   PlaybackCtrlHandle = osThreadCreate(osThread(PlaybackCtrl), NULL);
@@ -241,10 +227,6 @@ int main(void)
   /* definition and creation of QueueLiveviewCtrl */
   osMessageQDef(QueueLiveviewCtrl, 4, uint32_t);
   QueueLiveviewCtrlHandle = osMessageCreate(osMessageQ(QueueLiveviewCtrl), NULL);
-
-  /* definition and creation of QueueCaptureCtrl */
-  osMessageQDef(QueueCaptureCtrl, 4, uint32_t);
-  QueueCaptureCtrlHandle = osMessageCreate(osMessageQ(QueueCaptureCtrl), NULL);
 
   /* definition and creation of QueuePlaybackCtrl */
   osMessageQDef(QueuePlaybackCtrl, 4, uint32_t);
@@ -453,33 +435,12 @@ static void MX_USART2_UART_Init(void)
 
 /** 
   * Enable DMA controller clock
-  * Configure DMA for memory to memory transfers
-  *   hdma_memtomem_dma2_stream0
   */
 static void MX_DMA_Init(void) 
 {
   /* DMA controller clock enable */
   __HAL_RCC_DMA1_CLK_ENABLE();
   __HAL_RCC_DMA2_CLK_ENABLE();
-
-  /* Configure DMA request hdma_memtomem_dma2_stream0 on DMA2_Stream0 */
-  hdma_memtomem_dma2_stream0.Instance = DMA2_Stream0;
-  hdma_memtomem_dma2_stream0.Init.Channel = DMA_CHANNEL_0;
-  hdma_memtomem_dma2_stream0.Init.Direction = DMA_MEMORY_TO_MEMORY;
-  hdma_memtomem_dma2_stream0.Init.PeriphInc = DMA_PINC_DISABLE;
-  hdma_memtomem_dma2_stream0.Init.MemInc = DMA_MINC_ENABLE;
-  hdma_memtomem_dma2_stream0.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
-  hdma_memtomem_dma2_stream0.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
-  hdma_memtomem_dma2_stream0.Init.Mode = DMA_NORMAL;
-  hdma_memtomem_dma2_stream0.Init.Priority = DMA_PRIORITY_LOW;
-  hdma_memtomem_dma2_stream0.Init.FIFOMode = DMA_FIFOMODE_ENABLE;
-  hdma_memtomem_dma2_stream0.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_FULL;
-  hdma_memtomem_dma2_stream0.Init.MemBurst = DMA_MBURST_SINGLE;
-  hdma_memtomem_dma2_stream0.Init.PeriphBurst = DMA_PBURST_SINGLE;
-  if (HAL_DMA_Init(&hdma_memtomem_dma2_stream0) != HAL_OK)
-  {
-    _Error_Handler(__FILE__, __LINE__);
-  }
 
   /* DMA interrupt init */
   /* DMA1_Stream5_IRQn interrupt configuration */

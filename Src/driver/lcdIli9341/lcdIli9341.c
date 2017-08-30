@@ -82,7 +82,7 @@ void lcdIli9341_drawRect(uint16_t xStart, uint16_t yStart, uint16_t width, uint1
     for( uint16_t x = 0; x < width; x++ ){
 //      lcdIli9341_writeData(color >> 8);
 //      lcdIli9341_writeData(color);
-      * ((uint16_t*)LCD_DATA_ADDR) = color;
+      LCD_DATA = color;
     }
   }
 }

@@ -6,23 +6,19 @@
  */
 #include <stdio.h>
 #include "cmsis_os.h"
-#include "common.h"
-#include "commonHigh.h"
-#include "../hal/display.h"
-#include "../hal/camera.h"
 #include "ff.h"
 #include "jpeglib.h"
+#include "common.h"
+#include "commonHigh.h"
+#include "applicationSettings.h"
+#include "../hal/display.h"
+#include "../hal/camera.h"
 
 
 /*** Internal Const Values, Macros ***/
 #define LOG(str, ...) printf("[LV_CTRL:%d] " str, __LINE__, ##__VA_ARGS__);
 #define LOG_E(str, ...) printf("[LV_CTRL_ERR:%d] " str, __LINE__, ##__VA_ARGS__);
-#define CAP_SIZE_WIDTH  320
-#define CAP_SIZE_HEIGHT 240
-#define CAP_MOTION_JPEG_FPS_MSEC  100   //(10fps)
-#define FILENAME_JPEG      "IMG000.JPG"
-#define FILENAME_MOVIE     "IMG000.AVI"
-#define FILENAME_NUM_POS  3       // index number start at 3 (e.g. filename = IMG + 000)
+
 
 // need to modify jdatasrc.c
 #define INPUT_BUF_SIZE  512  /* choose an efficiently fread'able size */
@@ -39,7 +35,7 @@ typedef enum {
 static STATUS s_status = INACTIVE;
 static uint8_t s_requestStopMovie = 0;  // movie record will stop at next frame
 
-/* foe encode */
+/* for encode */
 static uint8_t *sp_lineBuffRGB888;
 static FATFS   *sp_fatFs;
 static FIL     *sp_fil;
@@ -94,7 +90,7 @@ void liveviewCtrl_task(void const * argument)
 /*** Internal Function Defines ***/
 static void liveviewCtrl_sendComp(MSG_STRUCT *p_recvMmsg, RET ret)
 {
-  MSG_STRUCT *p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
+  MSG_STRUCT *p_sendMsg = allocMemoryPoolMessage(); // receiver must free
   p_sendMsg->sender  = LIVEVIEW_CTRL;
   p_sendMsg->command = COMMAND_COMP(p_recvMmsg->command);
   p_sendMsg->param.val = ret;
@@ -165,8 +161,8 @@ static void liveviewCtrl_processMsg(MSG_STRUCT *p_msg)
     switch(p_msg->command){
     case CMD_START:
     case CMD_STOP:
-      LOG_E("status error\n");
-      liveviewCtrl_sendComp(p_msg, RET_ERR_STATUS);
+      LOG("ignored mode change\n");
+      liveviewCtrl_sendComp(p_msg, RET_DO_NOTHING);
       break;
     case CMD_NOTIFY_INPUT:
       if(p_msg->param.input.type == INPUT_TYPE_KEY_OTHER0){
@@ -187,18 +183,21 @@ static void liveviewCtrl_processMsg(MSG_STRUCT *p_msg)
 
 static void liveviewCtrl_processFrame()
 {
+  RET ret;
   if( s_status == MOVIE_RECORDING ){
     if(s_requestStopMovie) {
-      if(liveviewCtrl_movieRecordFinish() == RET_OK){
-        s_requestStopMovie = 0;
-        s_status = ACTIVE;
-      }
+      liveviewCtrl_movieRecordFinish();
+      s_requestStopMovie = 0;
+      s_status = ACTIVE;
     } else {
-        if(liveviewCtrl_movieRecordFrame() != RET_OK){
-          LOG_E("error during movie rec\n");
-          s_status = ACTIVE;
-        }
+      ret = liveviewCtrl_movieRecordFrame();
+      if(ret != RET_OK) {
+        LOG_E("error during movie rec: %08X\n", ret);
+        s_requestStopMovie = 1; // stop by myself
+      }
     }
+  } else {
+    // do nothing
   }
 }
 
@@ -288,7 +287,7 @@ static RET liveviewCtrl_startLiveView()
   RET ret = RET_OK;
   void* displayHandle = display_getDisplayHandle();
   camera_stopCap();
-  display_setArea(0, 0, CAP_SIZE_WIDTH - 1, CAP_SIZE_HEIGHT - 1);
+  display_setArea(0, 0, IMAGE_SIZE_WIDTH - 1, IMAGE_SIZE_HEIGHT - 1);
   ret |= camera_startCap(CAMERA_CAP_CONTINUOUS, displayHandle);
   return ret;
 }
@@ -302,7 +301,7 @@ static RET liveviewCtrl_stopLiveView()
 
 static RET liveviewCtrl_capture()
 {
-  LOG("Single Encode Start\n");
+  LOG("Single Capture Start\n");
   RET ret = RET_OK;
   char filename[14] = FILENAME_JPEG;
   uint32_t start = HAL_GetTick();
@@ -315,7 +314,7 @@ static RET liveviewCtrl_capture()
   ret |= liveviewCtrl_writeFileFinish();
 
   LOG("encode time = %d\n", HAL_GetTick() - start);
-  LOG("Single Encode Finish\n");
+  LOG("Single Capture Finish\n");
 
   /*** restart liveview ***/
   ret |= liveviewCtrl_startLiveView();
@@ -368,14 +367,14 @@ static RET liveviewCtrl_movieRecordFrame()
   RET ret = RET_OK;
 
   if(s_nextFrameReady) {
-    if(HAL_GetTick() - s_lastFrameStartTimeMSec > CAP_MOTION_JPEG_FPS_MSEC) { // control fps
+    if(HAL_GetTick() - s_lastFrameStartTimeMSec > MOTION_JPEG_FPS_MSEC) { // control fps
       LOG("Movie One Frame Encode. Current FPS(msec) = %d\n", HAL_GetTick() - s_lastFrameStartTimeMSec);
       s_lastFrameStartTimeMSec = HAL_GetTick();
       /* encode one frame (do not close file yet) */
       ret |= liveviewCtrl_encodeJpegFrame();
       /* capture next frame */
       void* displayHandle = display_getDisplayHandle();
-      display_setArea(0, 0, CAP_SIZE_WIDTH - 1, CAP_SIZE_HEIGHT - 1);
+      display_setArea(0, 0, IMAGE_SIZE_WIDTH - 1, IMAGE_SIZE_HEIGHT - 1);
       ret |= camera_startCap(CAMERA_CAP_SINGLE_FRAME, displayHandle);
       s_nextFrameReady = 0;
     } else {
@@ -401,7 +400,7 @@ static RET liveviewCtrl_encodeJpegFrame()
   /*** alloc memory ***/
   sp_cinfo = pvPortMalloc(sizeof(struct jpeg_compress_struct));
   sp_jerr  = pvPortMalloc(sizeof(struct jpeg_error_mgr));
-  sp_lineBuffRGB888 = pvPortMalloc(CAP_SIZE_WIDTH * 3);
+  sp_lineBuffRGB888 = pvPortMalloc(IMAGE_SIZE_WIDTH * 3);
 
   if( (sp_cinfo == 0) || (sp_jerr == 0) || (sp_lineBuffRGB888 == 0) ){
     LOG_E("not enough memory\n");
@@ -418,8 +417,8 @@ static RET liveviewCtrl_encodeJpegFrame()
   jpeg_stdio_dest(sp_cinfo, sp_fil);
 
   /* jpeg encode setting */
-  sp_cinfo->image_width  = CAP_SIZE_WIDTH;
-  sp_cinfo->image_height = CAP_SIZE_HEIGHT;
+  sp_cinfo->image_width  = IMAGE_SIZE_WIDTH;
+  sp_cinfo->image_height = IMAGE_SIZE_HEIGHT;
   sp_cinfo->input_components = 3;
   sp_cinfo->in_color_space = JCS_RGB;
   jpeg_set_defaults(sp_cinfo);
@@ -427,10 +426,10 @@ static RET liveviewCtrl_encodeJpegFrame()
   jpeg_start_compress(sp_cinfo, TRUE);
 
   /*** read pixel data from display and encode line by line ***/
-  display_setAreaRead(0, 0, CAP_SIZE_WIDTH - 1, CAP_SIZE_HEIGHT - 1);
-  for(uint32_t y = 0; y < CAP_SIZE_HEIGHT; y++) {
+  display_setAreaRead(0, 0, IMAGE_SIZE_WIDTH - 1, IMAGE_SIZE_HEIGHT - 1);
+  for(uint32_t y = 0; y < IMAGE_SIZE_HEIGHT; y++) {
     /* read one line from display device (as an external RAM) */
-    display_readLineRGB888(sp_lineBuffRGB888, CAP_SIZE_WIDTH);
+    display_readImageRGB888(sp_lineBuffRGB888, IMAGE_SIZE_WIDTH);
     /* encode one line */
     if(jpeg_write_scanlines(sp_cinfo, s_jsamprow, 1) != 1) {
       LOG_E("Single Encode Stop at line %d\n", y);

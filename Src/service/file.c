@@ -26,18 +26,18 @@ static uint8_t s_isInitDone = 0;
 RET file_init()
 {
   FRESULT ret;
-  s_isInitDone = 1;
   f_mount(0, "", 0);
   ret = f_mount(&s_fatFs, "", 0);
   if(ret != FR_OK) return RET_ERR_FILE;
+  s_isInitDone = 1;
   return RET_OK;
 }
 RET file_deinit()
 {
   FRESULT ret;
-  s_isInitDone = 0;
   ret = f_mount(0, "", 0);
   if(ret != FR_OK) return RET_ERR_FILE;
+  s_isInitDone = 0;
   return RET_OK;
 }
 
@@ -98,7 +98,7 @@ RET file_loadStop()
   return RET_OK;
 }
 
-// seems numByte must be <1024
+// numByte must be <1024
 RET file_load(void* destAddress, uint32_t numByte, uint32_t* p_numByte)
 {
   FRESULT ret;
