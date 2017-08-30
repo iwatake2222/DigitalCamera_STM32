@@ -147,6 +147,7 @@ static void playbackCtrl_processMsg(MSG_STRUCT *p_msg)
       } else if(p_msg->param.input.type == INPUT_TYPE_KEY_OTHER0) {
         if(s_status == MOVIE_PLAYING) {
           s_status = MOVIE_PAUSE;
+          display_osd(DISPLAY_OSD_TYPE_PAUSE);
         } else if(s_status == MOVIE_PAUSE) {
           s_status = MOVIE_PLAYING;
         }
@@ -400,6 +401,8 @@ static RET playbackCtrl_playMotionJPEGStop()
 {
   RET ret = RET_OK;
   ret |= file_loadStop();
+
+  display_osd(DISPLAY_OSD_TYPE_STOP);
 
   s_status = ACTIVE;
   sp_movieFil = 0;

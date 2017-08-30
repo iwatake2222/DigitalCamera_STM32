@@ -16,6 +16,11 @@
 
 #define DISPLAY_PIXEL_FORMAT_RGB565 0
 
+#define DISPLAY_OSD_TYPE_PLAY  0
+#define DISPLAY_OSD_TYPE_PAUSE 1
+#define DISPLAY_OSD_TYPE_STOP  2
+#define DISPLAY_OSD_TYPE_END   3
+
 RET display_init();
 RET display_setArea(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd);
 RET display_setAreaRead(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd);
@@ -25,5 +30,6 @@ uint32_t display_getPixelFormat();
 void display_writeImage(void* canvasHandle, uint32_t pixelNum);
 void display_putPixelRGB565(uint16_t rgb565);
 void display_readImageRGB888(uint8_t *p_buff, uint32_t width);
+void display_osd(uint32_t osdType);
 
 #endif /* HAL_DISPLAY_H_ */

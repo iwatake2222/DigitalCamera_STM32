@@ -15,6 +15,7 @@
 /*** Internal Const Values, Macros ***/
 
 /*** Internal Static Variables ***/
+static uint16_t s_xStart, s_yStart, s_xEnd, s_yEnd;
 
 /*** Internal Function Declarations ***/
 static RET display_checkArea(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd);
@@ -29,6 +30,7 @@ RET display_setArea(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yE
 {
   if(display_checkArea(xStart, yStart, xEnd, yEnd) == RET_OK){
     lcdIli9341_setArea(xStart, yStart, xEnd, yEnd);
+    s_xStart = xStart;  s_yStart = yStart;  s_xEnd = xEnd;  s_yEnd = yEnd;
     return RET_OK;
   }
   return RET_ERR_PARAM;
@@ -50,7 +52,6 @@ RET display_drawRect(uint16_t xStart, uint16_t yStart, uint16_t width, uint16_t 
     return RET_OK;
   }
   return RET_ERR_PARAM;
-
 }
 
 void* display_getDisplayHandle()
@@ -98,6 +99,28 @@ void display_readImageRGB888(uint8_t *p_buff, uint32_t pixelNum)
   }
 }
 
+void display_osd(uint32_t osdType)
+{
+  switch(osdType) {
+  case DISPLAY_OSD_TYPE_PLAY:
+    // not yet
+    break;
+  case DISPLAY_OSD_TYPE_PAUSE:
+    display_drawRect(LCD_ILI9342_WIDTH / 2 - 45, 35, 40, LCD_ILI9342_HEIGHT - 35 * 2, DISPLAY_COLOR_BLACK);
+    display_drawRect(LCD_ILI9342_WIDTH / 2 + 35, 35, 40, LCD_ILI9342_HEIGHT - 35 * 2, DISPLAY_COLOR_BLACK);
+    display_drawRect(LCD_ILI9342_WIDTH / 2 - 40, 40, 30, LCD_ILI9342_HEIGHT - 40 * 2, DISPLAY_COLOR_WHITE);
+    display_drawRect(LCD_ILI9342_WIDTH / 2 + 40, 40, 30, LCD_ILI9342_HEIGHT - 40 * 2, DISPLAY_COLOR_WHITE);
+    break;
+  case DISPLAY_OSD_TYPE_STOP:
+    display_drawRect(LCD_ILI9342_WIDTH / 2 - 45, LCD_ILI9342_HEIGHT / 2 - 45, 90, 90, DISPLAY_COLOR_BLACK);
+    display_drawRect(LCD_ILI9342_WIDTH / 2 - 40, LCD_ILI9342_HEIGHT / 2 - 40, 80, 80, DISPLAY_COLOR_WHITE);
+    break;
+  case DISPLAY_OSD_TYPE_END:
+    // not yet
+    break;
+  }
+  display_setArea(s_xStart, s_yStart, s_xEnd, s_yEnd);
+}
 
 /*** Internal Function Defines ***/
 static RET display_checkArea(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd)
