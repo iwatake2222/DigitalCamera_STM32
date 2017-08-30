@@ -587,7 +587,7 @@ static RET playbackCtrl_calcJpegOutputSize(struct jpeg_decompress_struct* p_cinf
     return RET_ERR;
   }
   scaleY = scaleX;
-  if (p_cinfo->image_height / scaleY > maxHeight){
+  if ((p_cinfo->image_height * scaleY) / 8 > maxHeight){
     if(p_cinfo->image_height <= maxHeight) {
       scaleY = 8;
     } else if(p_cinfo->image_height/2 <= maxHeight) {
