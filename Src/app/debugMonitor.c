@@ -189,7 +189,7 @@ static RET mode(char *argv[], uint32_t argc)
   } else if(key == 1) {
     p_sendMsg->param.input.type   = (int16_t)INPUT_TYPE_KEY_CAP;
   }
-  p_sendMsg->param.input.status   = 1;
+  p_sendMsg->param.input.param   = 1;
 
   osMessagePut(getQueueId(MODE_MGR), (uint32_t)p_sendMsg, 0);
   return RET_OK;

@@ -41,6 +41,7 @@ static FIL     *sp_fil;
 static struct jpeg_compress_struct *sp_cinfo;
 static struct jpeg_error_mgr       *sp_jerr;
 static JSAMPROW s_jsamprow[2] = {0};
+static uint32_t s_jpegQuality = JPEG_QUALITY;
 
 /* for movie recording */
 static uint8_t s_nextFrameReady = 0;
@@ -63,8 +64,10 @@ static RET liveviewCtrl_encodeJpegFrame();  // call this between liveviewCtrl_wr
 static RET liveviewCtrl_writeFileStart(char* filename);
 static RET liveviewCtrl_writeFileFinish();
 static RET liveviewCtrl_generateFilename(char* filename, uint8_t numPos);
+static void liveviewCtrl_libjpeg_output_message (j_common_ptr cinfo);
 
 static void liveviewCtrl_cbVsync(uint32_t frame);
+static void liveviewCtrl_changeJpegQuality(int32_t delta);
 
 /*** External Function Defines ***/
 void liveviewCtrl_task(void const * argument)
@@ -135,7 +138,7 @@ static void liveviewCtrl_processMsg(MSG_STRUCT *p_msg)
       liveviewCtrl_sendComp(p_msg, ret);
       break;
     case CMD_NOTIFY_INPUT:
-      LOG("input: %d %d\n", p_msg->param.input.type, p_msg->param.input.status);
+      LOG("input: %d %d\n", p_msg->param.input.type, p_msg->param.input.param);
       if(p_msg->param.input.type == INPUT_TYPE_KEY_CAP) {
         s_status = SINGLE_CAPTURING;
         liveviewCtrl_capture();
@@ -144,6 +147,8 @@ static void liveviewCtrl_processMsg(MSG_STRUCT *p_msg)
         if(liveviewCtrl_movieRecordStart() == RET_OK){
           s_status = MOVIE_RECORDING;
         }
+      } else if(p_msg->param.input.type == INPUT_TYPE_DIAL0) {
+        liveviewCtrl_changeJpegQuality(p_msg->param.input.param);
       }
       break;
     case COMMAND_COMP(CMD_REGISTER):
@@ -231,7 +236,8 @@ static RET liveviewCtrl_init()
   p_sendMsg = allocMemoryPoolMessage(); // must free by receiver
   p_sendMsg->command = CMD_REGISTER;
   p_sendMsg->sender  = LIVEVIEW_CTRL;
-  p_sendMsg->param.input.type = INPUT_TYPE_DIAL0;
+  p_sendMsg->param.input.type    = INPUT_TYPE_DIAL0;
+  p_sendMsg->param.input.param = 4; // notify every 10 ticks;
   osMessagePut(getQueueId(INPUT), (uint32_t)p_sendMsg, osWaitForever);
 
   /*** init display ***/
@@ -403,6 +409,12 @@ static RET liveviewCtrl_movieRecordFrame()
     }
   } else {
     /* not ready (copying image data from camera to display) */
+
+    // workaround. Vsync signal sometimes doesn't come (probably because of poor hardware work)
+    if(HAL_GetTick() - s_lastFrameStartTimeMSec > MOTION_JPEG_FPS_MSEC*3) {
+      LOG_E("frame lost\n");
+      s_nextFrameReady = 1;
+    }
   }
 
   return ret;
@@ -434,6 +446,7 @@ static RET liveviewCtrl_encodeJpegFrame()
   /*** prepare libjpeg ***/
   s_jsamprow[0] = sp_lineBuffRGB888;
   sp_cinfo->err = jpeg_std_error(sp_jerr);
+  sp_cinfo->err->output_message = liveviewCtrl_libjpeg_output_message;  // over-write error output function
   jpeg_create_compress(sp_cinfo);
   jpeg_stdio_dest(sp_cinfo, sp_fil);
 
@@ -443,7 +456,7 @@ static RET liveviewCtrl_encodeJpegFrame()
   sp_cinfo->input_components = 3;
   sp_cinfo->in_color_space = JCS_RGB;
   jpeg_set_defaults(sp_cinfo);
-  jpeg_set_quality(sp_cinfo, JPEG_QUALITY, TRUE);
+  jpeg_set_quality(sp_cinfo, s_jpegQuality, TRUE);
   jpeg_start_compress(sp_cinfo, TRUE);
 
   /*** read pixel data from display and encode line by line ***/
@@ -565,4 +578,25 @@ static RET liveviewCtrl_encodeRGB565Frame()
 
   vPortFree(sp_lineBuffRGB565);
   return RET_OK;
+}
+
+static void liveviewCtrl_libjpeg_output_message (j_common_ptr cinfo)
+{
+  char buffer[JMSG_LENGTH_MAX];
+  /* Create the message */
+  (*cinfo->err->format_message) (cinfo, buffer);
+  printf( "%s\n", buffer);
+}
+
+static void liveviewCtrl_changeJpegQuality(int32_t delta)
+{
+  s_jpegQuality += (delta * 10);
+  if(s_jpegQuality > 100) s_jpegQuality = 100;
+  if(s_jpegQuality < 1) s_jpegQuality = 1;
+  LOG("Q = %d\n", s_jpegQuality);
+  liveviewCtrl_stopLiveView();
+  display_osdBar(s_jpegQuality);
+  HAL_Delay(300);
+  liveviewCtrl_startLiveView();
+
 }

@@ -30,6 +30,6 @@ uint32_t display_getPixelFormat();
 void display_writeImage(void* canvasHandle, uint32_t pixelNum);
 void display_putPixelRGB565(uint16_t rgb565);
 void display_readImageRGB888(uint8_t *p_buff, uint32_t width);
-void display_osd(uint32_t osdType);
+void display_osdMark(uint32_t osdType);
 
 #endif /* HAL_DISPLAY_H_ */

@@ -99,7 +99,7 @@ void display_readImageRGB888(uint8_t *p_buff, uint32_t pixelNum)
   }
 }
 
-void display_osd(uint32_t osdType)
+void display_osdMark(uint32_t osdType)
 {
   switch(osdType) {
   case DISPLAY_OSD_TYPE_PLAY:
@@ -119,6 +119,20 @@ void display_osd(uint32_t osdType)
     // not yet
     break;
   }
+  display_setArea(s_xStart, s_yStart, s_xEnd, s_yEnd);
+}
+
+void display_osdBar(uint32_t level)
+{
+  const uint32_t MARGINE = 20;
+  const uint32_t HEIGHT  = 40;
+  display_drawRect(MARGINE,                         LCD_ILI9342_HEIGHT - MARGINE - HEIGHT,
+                   LCD_ILI9342_WIDTH - 2 * MARGINE, HEIGHT,
+                   DISPLAY_COLOR_BLACK);
+  display_drawRect(MARGINE,                         LCD_ILI9342_HEIGHT - MARGINE - HEIGHT,
+                   ((LCD_ILI9342_WIDTH - 2 * MARGINE) * level) / 100, HEIGHT,
+                   DISPLAY_COLOR_BLUE);
+
   display_setArea(s_xStart, s_yStart, s_xEnd, s_yEnd);
 }
 

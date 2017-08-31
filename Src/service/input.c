@@ -25,6 +25,7 @@ extern TIM_HandleTypeDef htim5;
 /*** Internal Static Variables ***/
 MODULE_ID s_registeredId[INPUT_TYPE_NUM][INPUT_MAX_REGISTER_NUM]; // initialized by 0 (dummy module id)
 uint8_t  s_needNotify[INPUT_TYPE_NUM];
+int16_t  s_dial0Sensitivity = 1;
 
 /*** Internal Function Declarations ***/
 static void input_init();
@@ -78,6 +79,9 @@ static RET input_regist(MSG_STRUCT *p_msg)
   for(uint32_t i = 0; i < INPUT_MAX_REGISTER_NUM; i++) {
     if (s_registeredId[p_msg->param.input.type][i] == 0) {
       s_registeredId[p_msg->param.input.type][i] = p_msg->sender;
+      if(p_msg->param.input.type == INPUT_TYPE_DIAL0) {
+        s_dial0Sensitivity = (p_msg->param.input.param != 0) ? p_msg->param.input.param : 1;
+      }
       return RET_OK;
     }
   }
@@ -149,11 +153,11 @@ static void input_checkStatus()
 
   /* check dial 0(rotary encoder) */
   uint32_t cnt = htim5.Instance->CNT;
-  cnt /= INPUT_DIAL0_TICK;
-  if(cnt != s_dial0){
-    input_notify(INPUT_TYPE_DIAL0, cnt - s_dial0);
+  int16_t delta = (int16_t)(cnt - s_dial0) / (INPUT_DIAL0_TICK * s_dial0Sensitivity);
+  if(delta != 0){
+    input_notify(INPUT_TYPE_DIAL0, delta);
+    s_dial0 = cnt;
   }
-  s_dial0 = cnt;
 
 }
 
@@ -165,7 +169,7 @@ static void input_notify(INPUT_TYPE type, int16_t status)
       p_sendMsg->sender  = INPUT;
       p_sendMsg->command = CMD_NOTIFY_INPUT;
       p_sendMsg->param.input.type   = type;
-      p_sendMsg->param.input.status = status;
+      p_sendMsg->param.input.param = status;
       osMessagePut(getQueueId(s_registeredId[type][i]), (uint32_t)p_sendMsg, osWaitForever);
     }
   }

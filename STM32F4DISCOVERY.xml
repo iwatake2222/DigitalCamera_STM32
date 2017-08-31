@@ -12,8 +12,8 @@
 <targetDefinitions>
   <board id="stm32f4discovery">
     <name>STM32F4DISCOVERY</name>
-    <dbgIF>JTAG</dbgIF>
     <dbgIF>SWD</dbgIF>
+    <dbgIF>JTAG</dbgIF>
     <dbgDEV>ST-Link</dbgDEV>
     <mcuId>stm32f407vgtx</mcuId>
   </board>

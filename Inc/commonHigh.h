@@ -44,7 +44,7 @@ typedef struct {
     uint32_t  val;
     struct {
       int16_t type;   // INPUT_TYPE
-      int16_t status; // only for dial
+      int16_t param; // only for dial (sensitivity at register, delta at notify)
     }input;
   }param;
 } MSG_STRUCT;

@@ -140,13 +140,13 @@ static void playbackCtrl_processMsg(MSG_STRUCT *p_msg)
       playbackCtrl_sendComp(p_msg, ret);
       break;
     case CMD_NOTIFY_INPUT:
-      LOG("input: %d %d\n", p_msg->param.input.type, p_msg->param.input.status);
+      LOG("input: %d %d\n", p_msg->param.input.type, p_msg->param.input.param);
       if(p_msg->param.input.type == INPUT_TYPE_DIAL0) {
         playbackCtrl_playNext();
       } else if(p_msg->param.input.type == INPUT_TYPE_KEY_OTHER0) {
         if(s_status == MOVIE_PLAYING) {
           s_status = MOVIE_PAUSE;
-          display_osd(DISPLAY_OSD_TYPE_PAUSE);
+          display_osdMark(DISPLAY_OSD_TYPE_PAUSE);
         } else if(s_status == MOVIE_PAUSE) {
           s_status = MOVIE_PLAYING;
         }
@@ -187,6 +187,7 @@ static RET playbackCtrl_init()
   p_sendMsg->command = CMD_REGISTER;
   p_sendMsg->sender  = PLAYBACK_CTRL;
   p_sendMsg->param.input.type = INPUT_TYPE_KEY_OTHER0;
+  p_sendMsg->param.input.param = 1; // notify every 1 ticks;
   osMessagePut(getQueueId(INPUT), (uint32_t)p_sendMsg, osWaitForever);
 
   /* register to be notified when capture key pressed */
@@ -401,7 +402,7 @@ static RET playbackCtrl_playMotionJPEGStop()
   RET ret = RET_OK;
   ret |= file_loadStop();
 
-  display_osd(DISPLAY_OSD_TYPE_STOP);
+  display_osdMark(DISPLAY_OSD_TYPE_STOP);
 
   s_status = ACTIVE;
   sp_movieFil = 0;

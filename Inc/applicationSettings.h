@@ -14,7 +14,7 @@
 #define MOTION_JPEG_FPS_MSEC     200   // target is 5fps
 #define MOTION_JPEG_FPS_MSEC_EX  100   // play motion jpeg(not recorded by this device) as 10fps
 
-#define JPEG_QUALITY 40   // 1 - 100
+#define JPEG_QUALITY 60   // 1 - 100
 
 #define FILENAME_JPEG      "IMG000.JPG"
 #define FILENAME_MOVIE     "IMG000.AVI"
