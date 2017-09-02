@@ -9,7 +9,7 @@
 #include "ff.h"
 #include "jpeglib.h"
 #include "common.h"
-#include "commonHigh.h"
+#include "commonMsg.h"
 #include "applicationSettings.h"
 #include "../hal/display.h"
 #include "../service/file.h"

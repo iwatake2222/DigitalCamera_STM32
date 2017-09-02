@@ -8,7 +8,7 @@
 #include "cmsis_os.h"
 #include "main.h"
 #include "common.h"
-#include "commonHigh.h"
+#include "commonMsg.h"
 #include "stm32f4xx_hal.h"
 #include "ff.h"
 

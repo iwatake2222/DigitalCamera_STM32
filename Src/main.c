@@ -54,7 +54,7 @@
 
 /* USER CODE BEGIN Includes */
 #include "common.h"
-#include "commonHigh.h"
+#include "commonMsg.h"
 
 /* USER CODE END Includes */
 

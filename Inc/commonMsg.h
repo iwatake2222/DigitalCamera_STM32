@@ -1,12 +1,12 @@
 /*
- * commonHigh.h
+ * commonMsg.h
  *
  *  Created on: 2017/08/26
  *      Author: take-iwiw
  */
 
-#ifndef COMMONHIGH_H_
-#define COMMONHIGH_H_
+#ifndef COMMONMSG_H_
+#define COMMONMSG_H_
 
 typedef enum {
   DUMMY,
@@ -54,4 +54,4 @@ osMessageQId getQueueId(MODULE_ID moduleId);
 MSG_STRUCT *allocMemoryPoolMessage();
 void freeMemoryPoolMessage(MSG_STRUCT *p_message);
 
-#endif /* COMMONHIGH_H_ */
+#endif /* COMMONMSG_H_ */

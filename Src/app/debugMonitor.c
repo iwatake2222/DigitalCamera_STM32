@@ -15,7 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "common.h"
-#include "commonHigh.h"
+#include "commonMsg.h"
 #include "ff.h"
 #include "jpeglib.h"
 #include "../driver/ov7670/ov7670.h"

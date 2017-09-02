@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include "cmsis_os.h"
 #include "common.h"
-#include "commonHigh.h"
+#include "commonMsg.h"
 
 /*** Internal Const Values, Macros ***/
 #define LOG(str, ...) printf("[MODE:%d] " str, __LINE__, ##__VA_ARGS__);
