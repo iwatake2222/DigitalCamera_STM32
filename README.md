@@ -2,7 +2,9 @@
 This is a project to create a digital camera with STM32
 
 ![picture1](01_doc/pic_all.jpg)
-![picture1](01_doc/pic_control.jpg)
+
+## Link to YouTube
+[![Link to YouTube](http://img.youtube.com/vi/CgX3bM4v_aU/0.jpg)](https://www.youtube.com/watch?v=CgX3bM4v_aU)
 
 # Specifications
 * Still photo capture
@@ -18,6 +20,9 @@ This is a project to create a digital camera with STM32
 	* Motion JPEG (around 10 fps)
 * Media
 	* SD Card (FAT32 format only?,  8GB ~ 16GB of SD card works well)
+* How to Control
+
+<img src=01_doc/pic_control.jpg width=50% height=50%>
 
 # Hardware
 ## Key Components
