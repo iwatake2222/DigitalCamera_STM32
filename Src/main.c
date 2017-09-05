@@ -40,7 +40,8 @@
 #include "stm32f4xx_hal.h"
 
 /* USER CODE BEGIN Includes */
-
+#include "common.h"
+#include "uartTerminal/uartTerminal.h"
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
@@ -75,7 +76,7 @@ static void MX_USART2_UART_Init(void);
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
-
+extern void retarget_init();
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
@@ -116,13 +117,16 @@ int main(void)
   MX_USART2_UART_Init();
 
   /* USER CODE BEGIN 2 */
-
+  retarget_init();
+  printf("Hello World\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	    char ch = getchar();
+	    printf("%c", ch);
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */
