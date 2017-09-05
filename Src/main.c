@@ -42,10 +42,13 @@
 /* USER CODE BEGIN Includes */
 #include "common.h"
 #include "uartTerminal/uartTerminal.h"
+#include "lcdIli9341/lcdIli9341.h"
+#include "ov7670/ov7670.h"
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
 DCMI_HandleTypeDef hdcmi;
+DMA_HandleTypeDef hdma_dcmi;
 
 I2C_HandleTypeDef hi2c2;
 
@@ -117,8 +120,40 @@ int main(void)
   MX_USART2_UART_Init();
 
   /* USER CODE BEGIN 2 */
+  /* init system */
   retarget_init();
   printf("Hello World\n");
+
+  /* init lcd */
+  lcdIli9341_init();
+  lcdIli9341_drawRect(100, 100, 50, 50, LCD_ILI9342_COLOR_RED);
+
+  lcdIli9341_setArea(0, 0, LCD_ILI9342_WIDTH - 1, LCD_ILI9342_HEIGHT - 1);
+  uint16_t* p_lcdData;
+  p_lcdData = lcdIli9341_getDrawAddress();
+
+  for(uint32_t y = 0 * LCD_ILI9342_HEIGHT/3; y < 1 * LCD_ILI9342_HEIGHT/3; y++){
+    for(uint32_t x = 0; x < LCD_ILI9342_WIDTH; x++){
+      *p_lcdData = LCD_ILI9342_COLOR_RED;
+    }
+  }
+  for(uint32_t y = 1 * LCD_ILI9342_HEIGHT/3; y < 2 * LCD_ILI9342_HEIGHT/3; y++){
+    for(uint32_t x = 0; x < LCD_ILI9342_WIDTH; x++){
+      *p_lcdData = LCD_ILI9342_COLOR_GREEN;
+    }
+  }
+  for(uint32_t y = 2 * LCD_ILI9342_HEIGHT/3; y < 3 * LCD_ILI9342_HEIGHT/3; y++){
+    for(uint32_t x = 0; x < LCD_ILI9342_WIDTH; x++){
+      *p_lcdData = LCD_ILI9342_COLOR_BLUE;
+    }
+  }
+
+
+  /* init camera */
+  ov7670_init(&hdcmi, &hdma_dcmi, &hi2c2);
+  ov7670_config(OV7670_MODE_QVGA_RGB565);
+  ov7670_startCap(OV7670_CAP_CONTINUOUS, p_lcdData);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -199,8 +234,8 @@ static void MX_DCMI_Init(void)
 
   hdcmi.Instance = DCMI;
   hdcmi.Init.SynchroMode = DCMI_SYNCHRO_HARDWARE;
-  hdcmi.Init.PCKPolarity = DCMI_PCKPOLARITY_FALLING;
-  hdcmi.Init.VSPolarity = DCMI_VSPOLARITY_LOW;
+  hdcmi.Init.PCKPolarity = DCMI_PCKPOLARITY_RISING;
+  hdcmi.Init.VSPolarity = DCMI_VSPOLARITY_HIGH;
   hdcmi.Init.HSPolarity = DCMI_HSPOLARITY_LOW;
   hdcmi.Init.CaptureRate = DCMI_CR_ALL_FRAME;
   hdcmi.Init.ExtendedDataMode = DCMI_EXTEND_DATA_8B;
@@ -316,11 +351,15 @@ static void MX_DMA_Init(void)
 {
   /* DMA controller clock enable */
   __HAL_RCC_DMA1_CLK_ENABLE();
+  __HAL_RCC_DMA2_CLK_ENABLE();
 
   /* DMA interrupt init */
   /* DMA1_Stream5_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream5_IRQn);
+  /* DMA2_Stream1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream1_IRQn);
 
 }
 
@@ -401,7 +440,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = GPIO_PIN_8;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF0_MCO;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
@@ -453,10 +492,10 @@ static void MX_FSMC_Init(void)
   hsram1.Init.WriteBurst = FSMC_WRITE_BURST_DISABLE;
   hsram1.Init.PageSize = FSMC_PAGE_SIZE_NONE;
   /* Timing */
-  Timing.AddressSetupTime = 15;
+  Timing.AddressSetupTime = 2;
   Timing.AddressHoldTime = 15;
-  Timing.DataSetupTime = 255;
-  Timing.BusTurnAroundDuration = 15;
+  Timing.DataSetupTime = 4;
+  Timing.BusTurnAroundDuration = 1;
   Timing.CLKDivision = 16;
   Timing.DataLatency = 17;
   Timing.AccessMode = FSMC_ACCESS_MODE_A;
