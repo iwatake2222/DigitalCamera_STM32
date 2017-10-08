@@ -3,11 +3,24 @@ This is a project to create a digital camera with STM32
 
 ![picture1](01_doc/pic_all.jpg)
 
-## Link to YouTube
-[![Link to YouTube](http://img.youtube.com/vi/CgX3bM4v_aU/0.jpg)](https://www.youtube.com/watch?v=CgX3bM4v_aU)
+<table>
+<tr>
+<th width="50%">Link to YouTube</th>
+<th width="50%">Link to Design Document</th>
+</tr>
+<tr>
+<td>
+<a href="https://www.youtube.com/watch?v=MqtJbraAlOU"><img src="http://img.youtube.com/vi/CgX3bM4v_aU/0.jpg" alt="Link to YouTube Video"></a>
+</td>
+<td>
+<a href="https://www.slideshare.net/TakeshiIwanari/how-to-create-digital-camera-with-stm32f4-discovery-board"><img src="01_doc/DigitalCameraDesignDocument_00.jpg" alt="Link to YouTube Video"></a>
+</td>
+</tr>
+</table>
 
 # Specifications
 * Still photo capture
+	* Live view (around 20 fps)
 	* JPEG (*.jpg)
 	* QVGA (320x240)
 * Movie record
